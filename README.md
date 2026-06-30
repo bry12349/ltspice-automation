@@ -1,7 +1,21 @@
 # LTspice Automation
 
-Local Codex plugin for turning natural-language circuit requests into visible
-LTspice schematics.
+Codex plugin that turns natural-language circuit requests into visible LTspice
+schematics, opens them in the LTspice GUI, validates them with batch simulation,
+and parses measurement results.
+
+This project is designed as a small but complete agentic engineering workflow:
+it bridges natural-language intent, deterministic file generation, desktop app
+automation, simulation verification, and result interpretation.
+
+## Highlights
+
+- Natural language to LTspice `.asc` schematic generation.
+- Opens generated schematics in the LTspice desktop app for visual inspection.
+- Runs LTspice batch simulations to verify generated circuits.
+- Parses `.log` files for warnings, errors, and `.meas` results.
+- Ships as a local Codex plugin with MCP tools and a reusable skill.
+- Includes a smoke test that validates the full RC low-pass workflow.
 
 The first stable workflow is intentionally narrow: generate a visible RC
 low-pass `.asc` schematic, open it in LTspice, run a batch simulation, and parse
@@ -23,6 +37,25 @@ The plugin can:
 3. Run LTspice in batch mode to verify the generated schematic is electrically
    valid.
 4. Parse `.log` output for warnings, errors, and measured values.
+
+## Demo result
+
+For a 1 V step input with `R=1k` and `C=1uF`, the generated schematic produces:
+
+```text
+vout_at_1ms = 0.631937 V
+vout_at_5ms = 0.993259 V
+tau_cross   = 1.000497 ms
+```
+
+That matches the expected RC time constant of `1 ms`, where the output reaches
+about 63.2% of the final value.
+
+An example schematic is included at:
+
+```text
+examples/rc-lowpass-step.asc
+```
 
 ## Tools
 
@@ -51,6 +84,31 @@ Not yet promoted to stable:
 Those can be added template-by-template, with regression tests that confirm the
 generated `.asc` netlist has the expected nodes.
 
+## Project structure
+
+```text
+ltspice-automation/
+├── .codex-plugin/plugin.json
+├── .mcp.json
+├── mcp/server.py
+├── skills/ltspice-automation/SKILL.md
+├── scripts/smoke_test.py
+├── examples/rc-lowpass-step.asc
+├── README.md
+└── LICENSE
+```
+
+## Installation in Codex
+
+Install the local plugin from a personal marketplace or copy the repository into
+your plugin source path, then add it from Codex:
+
+```bash
+codex plugin add ltspice-automation@personal
+```
+
+Restart Codex or open a new thread so the MCP tools and skill are loaded.
+
 ## Smoke test
 
 From the plugin root:
@@ -61,6 +119,13 @@ python3 scripts/smoke_test.py
 
 The test creates an RC low-pass schematic, runs LTspice, and verifies that
 `V(out)` at `1 ms` is near `0.632 V`.
+
+## Why this exists
+
+Most AI coding workflows stop at generating text files. This plugin demonstrates
+a tighter loop for engineering software: generate a circuit artifact, open it in
+the real desktop tool, run the simulator, and inspect the measured output before
+reporting success.
 
 ## Notes
 
