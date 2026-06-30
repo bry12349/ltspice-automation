@@ -1,0 +1,26 @@
+{
+  "name": "ltspice-automation",
+  "version": "0.1.0+codex.20260630080144",
+  "description": "Create visible LTspice schematics from natural-language RC low-pass requests.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Ltspice Automation",
+    "shortDescription": "Turn RC low-pass requests into visible LTspice schematics.",
+    "longDescription": "Local Codex tools that generate LTspice .asc schematics, open them in the LTspice GUI, run batch simulations for validation, and parse LTspice log measurements. The stable natural-language visual flow currently targets RC low-pass circuits.",
+    "developerName": "Local developer",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Write",
+      "Local"
+    ],
+    "defaultPrompt": [
+      "Create a visible LTspice RC low-pass schematic.",
+      "Open and simulate this generated LTspice circuit.",
+      "Check my LTspice schematic log for errors."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}
