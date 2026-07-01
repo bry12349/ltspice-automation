@@ -8,6 +8,11 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+try:
+    from mcp import reporting
+except ImportError:
+    import reporting
+
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 
@@ -149,12 +154,8 @@ def tool_create_rc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     resistance = str(args.get("resistance") or "1k")
     capacitance = str(args.get("capacitance") or "1u")
     source = str(args.get("source") or "PULSE(0 1 0 1u 1u 10m 20m)")
-    analysis = str(args.get("analysis") or ".tran 0 6m 0 10u")
-    measures = args.get("measures") or [
-        ".meas tran vout_at_1ms FIND V(out) AT=1m",
-        ".meas tran vout_at_5ms FIND V(out) AT=5m",
-        ".meas tran tau_cross WHEN V(out)=0.632120558 RISE=1",
-    ]
+    analysis = str(args.get("analysis") or _default_rc_analysis(resistance, capacitance))
+    measures = args.get("measures") or _default_rc_measures(resistance, capacitance, source)
 
     # LTspice .asc is a line-oriented schematic format. Coordinates are in LTspice
     # drawing units; this compact layout is intentionally simple and readable.
@@ -191,6 +192,32 @@ def tool_create_rc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     return {"path": str(path), "lines": lines}
 
 
+def tool_create_rl_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
+    title = str(args.get("title") or "RL step response schematic")
+    output_dir = _expand_path(args.get("output_dir")) or Path.cwd()
+    filename = _sanitize_filename(str(args.get("filename") or title)) + ".asc"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / filename
+    if path.exists() and not args.get("overwrite", False):
+        raise RuntimeError(f"Refusing to overwrite existing file: {path}")
+
+    resistance = str(args.get("resistance") or "10")
+    inductance = str(args.get("inductance") or "10m")
+    source = str(args.get("source") or "PULSE(0 5 0 1u 1u 10m 20m)")
+    analysis = str(args.get("analysis") or _default_rl_analysis(resistance, inductance))
+    measures = args.get("measures") or _default_rl_measures(resistance, inductance, source)
+    lines = _rl_step_asc(title, resistance, inductance, source, analysis, measures)
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {
+        "path": str(path),
+        "lines": lines,
+        "circuit_type": "rl_step_response",
+        "component_values": {"R1": resistance, "L1": inductance, "V1": source},
+        "analysis": analysis,
+    }
+
+
 def _parse_value(description: str, names: List[str], default: str) -> str:
     joined = "|".join(re.escape(name) for name in names)
     patterns = [
@@ -206,6 +233,7 @@ def _parse_value(description: str, names: List[str], default: str) -> str:
 
 def _normalize_spice_value(value: str) -> str:
     cleaned = value.strip().replace(" ", "")
+    cleaned = re.sub(r"(?i)([0-9.]+)M(?:Ω|ohm|欧姆|欧)$", r"\1Meg", cleaned)
     replacements = {
         "Ω": "",
         "欧姆": "",
@@ -218,15 +246,141 @@ def _normalize_spice_value(value: str) -> str:
         "v": "",
         "伏特": "",
         "伏": "",
+        "Henry": "",
+        "henry": "",
+        "H": "",
+        "h": "",
     }
     for old, new in replacements.items():
         cleaned = cleaned.replace(old, new)
     cleaned = cleaned.replace("K", "k")
-    cleaned = cleaned.replace("MΩ", "Meg")
+    cleaned = re.sub(r"(?i)([0-9.]+)meg$", r"\1Meg", cleaned)
     cleaned = re.sub(r"(?i)uf$", "u", cleaned)
     cleaned = re.sub(r"(?i)nf$", "n", cleaned)
     cleaned = re.sub(r"(?i)pf$", "p", cleaned)
     return cleaned
+
+
+def _spice_number(value: str) -> Optional[float]:
+    match = re.match(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*([A-Za-z]*)\s*$", value)
+    if not match:
+        return None
+    number = float(match.group(1))
+    suffix = match.group(2)
+    multipliers = {
+        "": 1.0,
+        "f": 1e-15,
+        "p": 1e-12,
+        "n": 1e-9,
+        "u": 1e-6,
+        "m": 1e-3,
+        "k": 1e3,
+        "meg": 1e6,
+        "g": 1e9,
+        "t": 1e12,
+    }
+    multiplier = multipliers.get(suffix.lower())
+    if multiplier is None:
+        return None
+    return number * multiplier
+
+
+def _format_spice_decimal(value: float) -> str:
+    text = f"{value:.6f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _format_spice_time(seconds: float) -> str:
+    units = [
+        ("n", 1e-9),
+        ("u", 1e-6),
+        ("m", 1e-3),
+        ("", 1.0),
+    ]
+    for suffix, scale in units:
+        scaled = seconds / scale
+        if 1 <= abs(scaled) < 1000:
+            return f"{_format_spice_decimal(scaled)}{suffix}"
+    return _format_spice_decimal(seconds)
+
+
+def _source_final_voltage(source: str) -> Optional[float]:
+    text = source.strip()
+    pulse = re.match(r"(?i)^PULSE\s*\(\s*([^\s,)]+)\s+([^\s,)]+)", text)
+    if pulse:
+        return _spice_number(_normalize_spice_value(pulse.group(2)))
+    dc = re.match(r"(?i)^DC\s+([^\s,)]+)", text)
+    if dc:
+        return _spice_number(_normalize_spice_value(dc.group(1)))
+    plain = _spice_number(_normalize_spice_value(text))
+    return plain
+
+
+def _default_rc_measures(resistance: str, capacitance: str, source: str) -> List[str]:
+    r_value = _spice_number(_normalize_spice_value(resistance))
+    c_value = _spice_number(_normalize_spice_value(capacitance))
+    final_voltage = _source_final_voltage(source)
+    if r_value is None or c_value is None or final_voltage is None:
+        return [
+            ".meas tran vout_at_1ms FIND V(out) AT=1m",
+            ".meas tran vout_at_5ms FIND V(out) AT=5m",
+            ".meas tran tau_cross WHEN V(out)=0.632120558 RISE=1",
+        ]
+
+    tau = r_value * c_value
+    one_tau = _format_spice_time(tau)
+    five_tau = _format_spice_time(5 * tau)
+    tau_target = _format_spice_decimal(0.632120558 * final_voltage)
+    if one_tau == "1m" and five_tau == "5m":
+        first_name = "vout_at_1ms"
+        second_name = "vout_at_5ms"
+    else:
+        first_name = "vout_at_1tau"
+        second_name = "vout_at_5tau"
+    return [
+        f".meas tran {first_name} FIND V(out) AT={one_tau}",
+        f".meas tran {second_name} FIND V(out) AT={five_tau}",
+        f".meas tran tau_cross WHEN V(out)={tau_target} RISE=1",
+    ]
+
+
+def _default_rc_analysis(resistance: str, capacitance: str) -> str:
+    r_value = _spice_number(_normalize_spice_value(resistance))
+    c_value = _spice_number(_normalize_spice_value(capacitance))
+    if r_value is None or c_value is None:
+        return ".tran 0 6m 0 10u"
+    return f".tran 0 {_format_spice_time(6 * r_value * c_value)} 0 10u"
+
+
+def _default_rl_measures(resistance: str, inductance: str, source: str) -> List[str]:
+    r_value = _spice_number(_normalize_spice_value(resistance))
+    l_value = _spice_number(_normalize_spice_value(inductance))
+    final_voltage = _source_final_voltage(source)
+    if r_value in (None, 0) or l_value is None or final_voltage is None:
+        return [
+            ".meas tran i_at_1tau FIND I(L1) AT=1m",
+            ".meas tran i_at_5tau FIND I(L1) AT=5m",
+            ".meas tran tau_cross WHEN I(L1)=0.31606 RISE=1",
+            ".meas tran final_current FIND I(L1) AT=5m",
+        ]
+    tau = l_value / r_value
+    one_tau = _format_spice_time(tau)
+    five_tau = _format_spice_time(5 * tau)
+    target_current = _format_spice_decimal(0.632120558 * final_voltage / r_value)
+    return [
+        f".meas tran i_at_1tau FIND I(L1) AT={one_tau}",
+        f".meas tran i_at_5tau FIND I(L1) AT={five_tau}",
+        f".meas tran tau_cross WHEN I(L1)={target_current} RISE=1",
+        f".meas tran final_current FIND I(L1) AT={five_tau}",
+    ]
+
+
+def _default_rl_analysis(resistance: str, inductance: str) -> str:
+    r_value = _spice_number(_normalize_spice_value(resistance))
+    l_value = _spice_number(_normalize_spice_value(inductance))
+    if r_value in (None, 0) or l_value is None:
+        return ".tran 0 6m 0 10u"
+    return f".tran 0 {_format_spice_time(6 * l_value / r_value)} 0 10u"
 
 
 def _safe_asc_comment(text: str) -> str:
@@ -237,6 +391,8 @@ def _safe_asc_comment(text: str) -> str:
 
 def _classify_description(description: str) -> str:
     text = description.lower()
+    if re.search(r"\brl\b", text) or "电感" in text or "inductor" in text:
+        return "rl_step_response"
     if any(token in text for token in ["高通", "high pass", "high-pass", "highpass"]):
         return "rc_highpass"
     if any(token in text for token in ["分压", "voltage divider", "divider"]):
@@ -249,6 +405,10 @@ def _source_from_description(description: str, explicit: Optional[str] = None) -
         return str(explicit)
     text = description.lower()
     amplitude = _parse_value(description, ["幅度", "输入", "电源", "source", "vin", "v1"], "1")
+    if amplitude == "1":
+        step_amplitude = re.search(r"([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:V|v|伏)?)\s*(?:step|阶跃|pulse|脉冲)", description)
+        if step_amplitude:
+            amplitude = _normalize_spice_value(step_amplitude.group(1))
     if any(token in text for token in ["阶跃", "step", "pulse", "脉冲"]):
         return f"PULSE(0 {amplitude} 0 1u 1u 10m 20m)"
     if any(token in text for token in ["正弦", "sine", "sin"]):
@@ -284,6 +444,33 @@ def _rc_lowpass_asc(title: str, resistance: str, capacitance: str, source: str, 
         "SYMBOL cap 304 160 R0",
         "SYMATTR InstName C1",
         f"SYMATTR Value {capacitance}",
+        f"TEXT 80 352 Left 2 !{analysis}",
+    ]
+    return _append_directives(lines, title, measures)
+
+
+def _rl_step_asc(title: str, resistance: str, inductance: str, source: str, analysis: str, measures: List[str]) -> List[str]:
+    lines = _schematic_common_header() + [
+        "WIRE 176 112 96 112",
+        "WIRE 320 112 240 112",
+        "WIRE 464 112 384 112",
+        "WIRE 464 224 464 112",
+        "WIRE 96 224 96 112",
+        "WIRE 464 304 464 224",
+        "WIRE 96 304 96 288",
+        "WIRE 464 304 96 304",
+        "FLAG 96 304 0",
+        "FLAG 96 112 in",
+        "FLAG 320 112 n1",
+        "SYMBOL voltage 96 192 R0",
+        "SYMATTR InstName V1",
+        f"SYMATTR Value {source}",
+        "SYMBOL res 160 128 R270",
+        "SYMATTR InstName R1",
+        f"SYMATTR Value {resistance}",
+        "SYMBOL ind 304 128 R270",
+        "SYMATTR InstName L1",
+        f"SYMATTR Value {inductance}",
         f"TEXT 80 352 Left 2 !{analysis}",
     ]
     return _append_directives(lines, title, measures)
@@ -359,6 +546,18 @@ def _write_schematic(output_dir: Path, filename: str, lines: List[str], overwrit
     return path
 
 
+def _simulation_status(simulation: Optional[Dict[str, Any]], log: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if simulation is None:
+        return {"ok": None, "reason": "simulation_not_requested"}
+    if simulation.get("returncode") != 0:
+        return {"ok": False, "reason": "ltspice_returncode_nonzero"}
+    if log is None:
+        return {"ok": False, "reason": "log_missing"}
+    if log.get("errors"):
+        return {"ok": False, "reason": "log_errors"}
+    return {"ok": True, "reason": "simulation_passed"}
+
+
 def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, Any]:
     description = str(args.get("description") or "").strip()
     if not description:
@@ -377,14 +576,17 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
             raise RuntimeError("The natural-language visual schematic generator currently supports only rc_lowpass. Use create_netlist for other circuits until their .asc templates are verified.")
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "1k"))
         capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "1u"))
-        analysis = str(args.get("analysis") or ".tran 0 6m 0 10u")
-        measures = args.get("measures") or [
-            ".meas tran vout_at_1ms FIND V(out) AT=1m",
-            ".meas tran vout_at_5ms FIND V(out) AT=5m",
-        ]
-        measures = list(measures) + [".meas tran tau_cross WHEN V(out)=0.632120558 RISE=1"]
+        analysis = str(args.get("analysis") or _default_rc_analysis(resistance, capacitance))
+        measures = args.get("measures") or _default_rc_measures(resistance, capacitance, source)
         lines = _rc_lowpass_asc(title, resistance, capacitance, source, analysis, measures)
         component_values = {"R1": resistance, "C1": capacitance, "V1": source}
+    elif circuit_type == "rl_step_response":
+        resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "10"))
+        inductance = str(args.get("inductance") or _parse_value(description, ["电感", "l", "inductor", "inductance"], "10m"))
+        analysis = str(args.get("analysis") or _default_rl_analysis(resistance, inductance))
+        measures = args.get("measures") or _default_rl_measures(resistance, inductance, source)
+        lines = _rl_step_asc(title, resistance, inductance, source, analysis, measures)
+        component_values = {"R1": resistance, "L1": inductance, "V1": source}
     elif circuit_type == "voltage_divider":
         raise RuntimeError("The natural-language visual schematic generator currently supports only rc_lowpass. Use create_netlist for other circuits until their .asc templates are verified.")
     else:
@@ -399,12 +601,21 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
         "opened": False,
         "simulation": None,
         "log": None,
+        "simulation_status": {"ok": None, "reason": "simulation_not_requested"},
+        "report": None,
     }
     if args.get("simulate", True):
         result["simulation"] = tool_run_simulation({"input_path": str(path), "timeout_seconds": args.get("timeout_seconds", 60)})
         log_path = path.with_suffix(".log")
         if log_path.exists():
             result["log"] = tool_parse_log({"log_path": str(log_path)})
+        result["simulation_status"] = _simulation_status(result["simulation"], result["log"])
+        if circuit_type == "rc_lowpass":
+            report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rc_lowpass_report.md")
+            result["report"] = reporting.generate_rc_lowpass_report(result, report_path)
+        elif circuit_type == "rl_step_response":
+            report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rl_step_response_report.md")
+            result["report"] = reporting.generate_rl_step_response_report(result, report_path)
     if args.get("open", True):
         result["opened"] = tool_open_schematic({"path": str(path), "ltspice_path": args.get("ltspice_path")})
     return result
@@ -414,6 +625,15 @@ def tool_open_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     path = _expand_path(args.get("path"))
     if not path or not path.exists():
         raise RuntimeError("path must point to an existing LTspice schematic file.")
+    if sys.platform != "darwin":
+        return {
+            "command": None,
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "Opening LTspice schematics in the GUI is currently supported only on macOS.",
+            "path": str(path),
+            "unsupported_platform": True,
+        }
     app = _expand_path(args.get("ltspice_path"))
     if app and app.is_file() and app.name == "LTspice":
         app = app.parents[2]
@@ -548,6 +768,24 @@ TOOLS = {
         },
         "handler": tool_create_rc_schematic,
     },
+    "create_rl_schematic": {
+        "description": "Create a visible LTspice .asc schematic for an RL step-response circuit.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "output_dir": {"type": "string"},
+                "filename": {"type": "string"},
+                "overwrite": {"type": "boolean"},
+                "resistance": {"type": "string"},
+                "inductance": {"type": "string"},
+                "source": {"type": "string"},
+                "analysis": {"type": "string"},
+                "measures": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "handler": tool_create_rl_schematic,
+    },
     "create_schematic_from_description": {
         "description": "Convert a natural-language circuit request into a visible LTspice .asc schematic, optionally simulate it, and open it in LTspice.",
         "inputSchema": {
@@ -555,7 +793,7 @@ TOOLS = {
             "required": ["description"],
             "properties": {
                 "description": {"type": "string"},
-                "circuit_type": {"type": "string", "enum": ["rc_lowpass"]},
+                "circuit_type": {"type": "string", "enum": ["rc_lowpass", "rl_step_response"]},
                 "title": {"type": "string"},
                 "output_dir": {"type": "string"},
                 "filename": {"type": "string"},
@@ -565,12 +803,14 @@ TOOLS = {
                 "timeout_seconds": {"type": "integer"},
                 "resistance": {"type": "string"},
                 "capacitance": {"type": "string"},
+                "inductance": {"type": "string"},
                 "r_top": {"type": "string"},
                 "r_bottom": {"type": "string"},
                 "source": {"type": "string"},
                 "analysis": {"type": "string"},
                 "measures": {"type": "array", "items": {"type": "string"}},
                 "ltspice_path": {"type": "string"},
+                "report_path": {"type": "string"},
             },
         },
         "handler": tool_create_schematic_from_description,

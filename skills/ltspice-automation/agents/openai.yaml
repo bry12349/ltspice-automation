@@ -1,0 +1,14 @@
+interface:
+  display_name: "LTspice Automation"
+  short_description: "Generate and verify RC/RL LTspice circuits."
+  brand_color: "#2563EB"
+  default_prompt: "Use $ltspice-automation to create and simulate a first-order LTspice circuit."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "ltspice-automation"
+      description: "Local MCP server for LTspice schematic generation, simulation, log parsing, and reports."
+
+policy:
+  allow_implicit_invocation: true

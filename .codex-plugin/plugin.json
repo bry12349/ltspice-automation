@@ -1,25 +1,35 @@
 {
   "name": "ltspice-automation",
-  "version": "0.1.0+codex.20260630080144",
-  "description": "Create visible LTspice schematics from natural-language RC low-pass requests.",
+  "version": "0.2.0",
+  "description": "Create, simulate, parse, and report LTspice RC and RL step-response workflows.",
   "author": {
-    "name": "Local developer"
+    "name": "bry12349",
+    "url": "https://github.com/bry12349"
   },
+  "repository": "https://github.com/bry12349/ltspice-automation",
+  "license": "MIT",
+  "keywords": [
+    "ltspice",
+    "circuit-simulation",
+    "electrical-engineering",
+    "mcp",
+    "codex"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Ltspice Automation",
-    "shortDescription": "Turn RC low-pass requests into visible LTspice schematics.",
-    "longDescription": "Local Codex tools that generate LTspice .asc schematics, open them in the LTspice GUI, run batch simulations for validation, and parse LTspice log measurements. The stable natural-language visual flow currently targets RC low-pass circuits.",
-    "developerName": "Local developer",
+    "shortDescription": "Generate and verify LTspice RC/RL step-response circuits.",
+    "longDescription": "Local Codex tools that generate visible LTspice .asc schematics for RC low-pass and RL step-response circuits, run batch simulations, parse .log measurements, compare against first-order theory, and write Markdown simulation reports.",
+    "developerName": "bry12349",
     "category": "Developer Tools",
     "capabilities": [
       "Write",
       "Local"
     ],
     "defaultPrompt": [
-      "Create a visible LTspice RC low-pass schematic.",
-      "Open and simulate this generated LTspice circuit.",
-      "Check my LTspice schematic log for errors."
+      "Create and simulate a visible RC low-pass circuit.",
+      "Create and simulate a visible RL step-response circuit.",
+      "Parse this LTspice log and summarize measurements."
     ]
   },
   "mcpServers": "./.mcp.json"

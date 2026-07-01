@@ -9,7 +9,7 @@ from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SERVER = PLUGIN_ROOT / "mcp" / "server.py"
-OUT = PLUGIN_ROOT / "work" / "smoke"
+OUT = PLUGIN_ROOT / "work" / "rl-smoke"
 
 
 def call_tool(name, arguments):
@@ -45,38 +45,29 @@ def main():
     result = call_tool(
         "create_schematic_from_description",
         {
-            "description": "Generate a 1V step RC low-pass circuit with R=1k and C=1uF",
+            "description": "Generate a 5V step RL circuit with R=10 and L=10mH",
             "output_dir": str(OUT),
-            "filename": "smoke-rc-lowpass",
+            "filename": "rl-step-smoke",
             "overwrite": True,
             "open": False,
             "simulate": True,
         },
     )
     if result["simulation"]["returncode"] != 0:
-        raise RuntimeError("LTspice simulation failed")
+        raise RuntimeError("LTspice RL simulation failed")
     errors = result["log"]["errors"]
     if errors:
-        raise RuntimeError(f"LTspice log errors: {errors}")
-    measurement = result["log"]["measurements"].get("vout_at_1ms", "")
-    measured = parse_first_number(measurement)
-    expected = 1 - math.exp(-1)
-    if abs(measured - expected) > 0.002:
-        raise RuntimeError(f"Unexpected vout_at_1ms measurement: {measurement}")
+        raise RuntimeError(f"LTspice RL log errors: {errors}")
+    measurements = result["log"]["measurements"]
+    measured_1tau = parse_first_number(measurements.get("i_at_1tau", ""))
+    expected_1tau = 0.5 * (1 - math.exp(-1))
+    if abs(measured_1tau - expected_1tau) > 0.002:
+        raise RuntimeError(f"Unexpected i_at_1tau measurement: {measurements.get('i_at_1tau', '')}")
     report = result.get("report") or {}
     report_path = Path(report.get("path", ""))
     if not report_path.exists():
-        raise RuntimeError(f"Expected report was not generated: {report_path}")
-    report_text = report_path.read_text(encoding="utf-8")
-    for required in [
-        "# RC Low-Pass Simulation Report",
-        "## Circuit Parameters",
-        "## Theory vs Simulation",
-        "## Engineering Conclusion",
-    ]:
-        if required not in report_text:
-            raise RuntimeError(f"Report missing required section: {required}")
-    print("Smoke test passed")
+        raise RuntimeError(f"Expected RL report was not generated: {report_path}")
+    print("RL smoke test passed")
     print(result["path"])
 
 
