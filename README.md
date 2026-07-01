@@ -1,6 +1,6 @@
 # LTspice Automation
 
-LTspice Automation is a local Codex plugin and MCP tool server for turning a constrained natural-language circuit request into a visible LTspice schematic, running the simulation, parsing `.log` measurements, and checking whether the generated circuit behaves like the expected first-order RC response.
+LTspice Automation is a local Codex plugin and MCP tool server for turning a constrained natural-language circuit request into a visible LTspice schematic, running the simulation, parsing `.log` measurements, and checking whether the generated circuit behaves like the expected first-order RC or RL response.
 
 The stable workflows are intentionally narrow: RC low-pass step response and RL series step response. The project favors small, verified engineering loops over broad but fragile arbitrary circuit generation.
 
@@ -15,7 +15,7 @@ The stable workflows are intentionally narrow: RC low-pass step response and RL 
 - Scales the `tau_cross` measurement target with the input step voltage.
 - Returns a structured `simulation_status` summary while preserving raw simulation and log details.
 - Generates Markdown simulation reports for RC and RL workflows.
-- Includes smoke and unit tests for the current RC workflow.
+- Includes smoke and unit tests for the current RC and RL workflows.
 
 ## Project Architecture
 

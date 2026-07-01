@@ -1,5 +1,19 @@
 # Changelog
 
+## Phase 7.1 - Version and Documentation Consistency
+
+Date: 2026-07-01
+
+### Fixed
+
+- Synchronized the MCP `initialize` response server version with the plugin manifest version `0.2.0`.
+- Clarified the README introduction and feature list so the documented stable workflows match the implemented RC low-pass and RL step-response workflows.
+
+### Verification
+
+- Re-ran unit tests after the metadata and documentation update.
+- Re-ran Python compilation for the touched server module.
+
 ## Phase 7 - RL Workflow and Installable Skill Polish
 
 Date: 2026-07-01
