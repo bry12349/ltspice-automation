@@ -154,6 +154,13 @@ Shows transfer of first-order transient theory from capacitor voltage to inducto
 
 ## Phase 4: Add RLC Second-Order Response
 
+Before starting Phase 4, v0.3.0 completed an intermediate reliability phase:
+
+- RC/RL simulation results now include tolerance-based validation summaries.
+- RC/RL reports now include PASS/FAIL and reproduction sections.
+- Parser tests cover LTspice warning/error lines and avoid treating simulator metadata as measurements.
+- Smoke tests require validation to pass before accepting the generated result.
+
 ### Goal
 
 Add a second-order circuit template to demonstrate more advanced transient behavior.

@@ -1,6 +1,6 @@
 ---
 name: ltspice-automation
-description: Generate visible LTspice RC low-pass or RL step-response schematics, run LTspice simulations, parse .log/.meas results, compare first-order theory, and produce Markdown reports. Use for LTspice schematic generation, transient simulation, measurement extraction, or troubleshooting this plugin's RC/RL workflows.
+description: Generate visible LTspice RC low-pass or RL step-response schematics, run LTspice simulations, parse .log/.meas results, validate first-order theory against simulation, and produce Markdown reports with PASS/FAIL summaries. Use for LTspice schematic generation, transient simulation, measurement extraction, validation, or troubleshooting this plugin's RC/RL workflows.
 ---
 
 # LTspice Automation
@@ -13,6 +13,7 @@ Use this skill for LTspice workflows involving visible `.asc` schematics, SPICE 
 - RL series step response.
 - Explicit `.cir` netlist creation from caller-provided SPICE lines.
 - LTspice batch simulation and `.log` parsing.
+- Theory validation with tolerance-based PASS/FAIL checks.
 - Markdown reports for stable RC/RL step-response simulations.
 
 ## Standard Workflow
@@ -22,7 +23,8 @@ Use this skill for LTspice workflows involving visible `.asc` schematics, SPICE 
 3. Set `open=false` when the user asks for a file-only or headless workflow.
 4. Leave `simulate=true` unless the user asks only for schematic generation.
 5. Check `simulation_status.ok`, `.log` warnings/errors, and parsed measurements before explaining results.
-6. Use the generated Markdown report when summarizing final values.
+6. Check `validation.status` before calling the result acceptable.
+7. Use the generated Markdown report when summarizing final values.
 
 ## RC Low-Pass Requests
 
@@ -99,5 +101,6 @@ When reporting results, include:
 - LTspice simulation status;
 - parsed `.meas` values;
 - theory comparison for tau and 1 tau/5 tau response;
+- validation status and max error;
 - report path;
 - any warnings/errors or limitations.

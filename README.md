@@ -11,10 +11,12 @@ The stable workflows are intentionally narrow: RC low-pass step response and RL 
 - Opens generated schematics in the LTspice desktop app on macOS.
 - Runs LTspice batch simulation with `-b`.
 - Parses `.log` files for warnings, errors, and `.meas` values.
+- Filters common LTspice log metadata so reports focus on actual measurements.
 - Computes RC measurement points from `R*C` for non-default component values.
 - Scales the `tau_cross` measurement target with the input step voltage.
 - Returns a structured `simulation_status` summary while preserving raw simulation and log details.
-- Generates Markdown simulation reports for RC and RL workflows.
+- Validates RC/RL measurements against first-order theory with a configurable tolerance.
+- Generates Markdown simulation reports for RC and RL workflows with PASS/FAIL summaries.
 - Includes smoke and unit tests for the current RC and RL workflows.
 
 ## Project Architecture
@@ -26,7 +28,7 @@ Natural Language Request
   -> LTspice batch simulation
   -> log parsing (.log)
   -> measurement extraction (.meas)
-  -> theory comparison
+  -> theory validation
   -> report generation
 ```
 
@@ -37,6 +39,8 @@ ltspice-automation/
 ├── .codex-plugin/plugin.json
 ├── .mcp.json
 ├── mcp/server.py
+├── mcp/validation.py
+├── mcp/reporting.py
 ├── skills/ltspice-automation/SKILL.md
 ├── scripts/smoke_test.py
 ├── scripts/rl_smoke_test.py
@@ -126,7 +130,7 @@ Run the unit tests:
 python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
-The smoke test creates an RC low-pass schematic, runs LTspice, parses the `.log`, and verifies that `V(out)` at one time constant is close to `1 - exp(-1)`.
+The smoke test creates an RC low-pass schematic, runs LTspice, parses the `.log`, validates the measured values against theory, and verifies that `V(out)` at one time constant is close to `1 - exp(-1)`.
 
 ## MCP Tools
 
@@ -134,7 +138,7 @@ The smoke test creates an RC low-pass schematic, runs LTspice, parses the `.log`
 - `create_netlist`: writes a `.cir` file from explicit SPICE lines or a built-in RC low-pass netlist template.
 - `create_rc_schematic`: writes a visible LTspice `.asc` schematic for an RC step-response circuit.
 - `create_rl_schematic`: writes a visible LTspice `.asc` schematic for an RL step-response circuit.
-- `create_schematic_from_description`: parses a constrained natural-language RC/RL request, generates `.asc`, optionally simulates it, optionally writes a Markdown report, and optionally opens LTspice.
+- `create_schematic_from_description`: parses a constrained natural-language RC/RL request, generates `.asc`, optionally simulates it, validates the result, optionally writes a Markdown report, and optionally opens LTspice.
 - `open_schematic`: opens an existing `.asc` in the LTspice GUI on macOS.
 - `run_simulation`: runs LTspice batch mode against `.cir`, `.net`, or `.asc`.
 - `parse_log`: extracts warnings, errors, measurements, and log tail text from an LTspice `.log`.
@@ -259,7 +263,9 @@ The report includes:
 - theoretical RC values;
 - simulation values;
 - percent error;
+- validation PASS/FAIL summary;
 - warning/error summary;
+- reproduction command and paths;
 - engineering conclusion;
 - follow-up improvements.
 
@@ -273,6 +279,12 @@ Example report excerpt:
 | `vout_at_1ms` | `0.632121 V` | `0.631937 V` | `0.02903%` |
 | `vout_at_5ms` | `0.993262 V` | `0.993259 V` | `0.0003167%` |
 | `tau_cross` | `0.001 s` | `0.0010005 s` | `0.04982%` |
+
+## Validation Summary
+
+- Overall result: `PASS`
+- Tolerance: `2 %`
+- Max error: `0.0498164 %`
 ```
 
 ## Testing
@@ -283,7 +295,7 @@ Current test commands:
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/smoke_test.py
 python3 scripts/rl_smoke_test.py
-python3 -m py_compile mcp/server.py mcp/reporting.py scripts/smoke_test.py scripts/rl_smoke_test.py tests/test_server.py tests/test_reporting.py tests/test_rl.py
+python3 -m py_compile mcp/server.py mcp/reporting.py mcp/validation.py scripts/smoke_test.py scripts/rl_smoke_test.py tests/test_server.py tests/test_reporting.py tests/test_rl.py tests/test_validation.py
 ```
 
 Covered today:
@@ -292,6 +304,8 @@ Covered today:
 - RL schematic generation and report integration.
 - Mega-ohm unit normalization.
 - Structured simulation status helper behavior.
+- Theory validation pass/fail behavior for RC and RL measurements.
+- Fixture-style log parsing that avoids treating LTspice metadata as measurements.
 - Non-macOS GUI-open unsupported-platform response.
 - Numeric smoke-test tolerance for the default RC response.
 - Markdown report generation for RC and RL workflows.
@@ -317,9 +331,9 @@ That can be fine. The project does not require `LTspice` in `PATH` if `/Applicat
 
 `open_schematic` currently supports GUI opening only on macOS. Batch simulation may still work if you pass a valid LTspice executable path.
 
-### A non-RC circuit request fails
+### A non-RC/RL circuit request fails
 
-That is expected. The stable natural-language visual schematic generator currently supports RC low-pass circuits only. Use explicit netlist lines for custom `.cir` files until more verified templates exist.
+That is expected. The stable natural-language visual schematic generator currently supports RC low-pass and RL series step-response circuits. Use explicit netlist lines for custom `.cir` files until more verified templates exist.
 
 ### Measurement names changed for non-default RC values
 
@@ -331,6 +345,7 @@ For default `R=1k`, `C=1uF`, names remain `vout_at_1ms` and `vout_at_5ms`. For o
 - Natural-language parsing is constrained and regex-based.
 - GUI opening is macOS-specific.
 - Log parsing is useful but still simple; severity classification can be improved.
+- Validation currently targets the stable RC/RL first-order workflows only.
 - Markdown report generation currently supports RC low-pass and RL series step response.
 - RLC, Buck converter, and parameter sweep workflows are planned but not implemented.
 - The project is not a PCB or KiCad automation tool.
@@ -341,6 +356,7 @@ For default `R=1k`, `C=1uF`, names remain `vout_at_1ms` and `vout_at_5ms`. For o
 - Phase 1: improve tests, error handling, and log parsing.
 - Phase 2: add automatic Markdown simulation reports. Completed for RC low-pass.
 - Phase 3: add RL step response. Completed for a series RL template.
+- Phase 3.5: add validation summaries, fixture parser tests, and report reproducibility. Completed in v0.3.0.
 - Phase 4: add RLC second-order response.
 - Phase 5: add Buck converter simulation workflow.
 - Phase 6: add parameter sweep support.

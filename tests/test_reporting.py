@@ -48,6 +48,9 @@ class RcReportTests(unittest.TestCase):
         ]
         for section in required_sections:
             self.assertIn(section, text)
+        self.assertIn("## Validation Summary", text)
+        self.assertIn("Overall result: `PASS`", text)
+        self.assertIn("## Reproduction", text)
         self.assertIn("tau = R * C = 0.001 s", text)
         self.assertIn("vout_at_1ms", text)
         self.assertIn("0.631937", text)

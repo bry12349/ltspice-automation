@@ -10,8 +10,10 @@ from typing import Any, Dict, List, Optional
 
 try:
     from mcp import reporting
+    from mcp import validation
 except ImportError:
     import reporting
+    import validation
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
@@ -573,7 +575,7 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
 
     if circuit_type in ["rc_lowpass", "rc_highpass"]:
         if circuit_type != "rc_lowpass":
-            raise RuntimeError("The natural-language visual schematic generator currently supports only rc_lowpass. Use create_netlist for other circuits until their .asc templates are verified.")
+            raise RuntimeError("The natural-language visual schematic generator currently supports rc_lowpass and rl_step_response. Use create_netlist for other circuits until their .asc templates are verified.")
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "1k"))
         capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "1u"))
         analysis = str(args.get("analysis") or _default_rc_analysis(resistance, capacitance))
@@ -588,9 +590,9 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
         lines = _rl_step_asc(title, resistance, inductance, source, analysis, measures)
         component_values = {"R1": resistance, "L1": inductance, "V1": source}
     elif circuit_type == "voltage_divider":
-        raise RuntimeError("The natural-language visual schematic generator currently supports only rc_lowpass. Use create_netlist for other circuits until their .asc templates are verified.")
+        raise RuntimeError("The natural-language visual schematic generator currently supports rc_lowpass and rl_step_response. Use create_netlist for other circuits until their .asc templates are verified.")
     else:
-        raise RuntimeError("Unsupported circuit_type. Use rc_lowpass, rc_highpass, or voltage_divider.")
+        raise RuntimeError("Unsupported circuit_type. Use rc_lowpass or rl_step_response.")
 
     path = _write_schematic(output_dir, filename, lines, overwrite)
     result: Dict[str, Any] = {
@@ -602,6 +604,7 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
         "simulation": None,
         "log": None,
         "simulation_status": {"ok": None, "reason": "simulation_not_requested"},
+        "validation": None,
         "report": None,
     }
     if args.get("simulate", True):
@@ -611,9 +614,11 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
             result["log"] = tool_parse_log({"log_path": str(log_path)})
         result["simulation_status"] = _simulation_status(result["simulation"], result["log"])
         if circuit_type == "rc_lowpass":
+            result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 2.0))
             report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rc_lowpass_report.md")
             result["report"] = reporting.generate_rc_lowpass_report(result, report_path)
         elif circuit_type == "rl_step_response":
+            result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 2.0))
             report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rl_step_response_report.md")
             result["report"] = reporting.generate_rl_step_response_report(result, report_path)
     if args.get("open", True):
@@ -683,14 +688,31 @@ def tool_run_simulation(args: Dict[str, Any]) -> Dict[str, Any]:
 
 def _parse_measurements(text: str) -> Dict[str, str]:
     measurements: Dict[str, str] = {}
+    ignored_keys = {
+        "circuit",
+        "solver",
+        "tnom",
+        "temp",
+        "method",
+        "warning",
+        "error",
+        "fatal",
+    }
     for line in text.splitlines():
+        lowered = line.strip().lower()
+        if not lowered or lowered.startswith(("warning", "error", "fatal error")):
+            continue
         meas_match = re.match(r"^\s*([A-Za-z_][\w.]*)\s*:\s*(.+?)\s*$", line)
         if meas_match:
-            measurements[meas_match.group(1)] = meas_match.group(2)
+            name = meas_match.group(1)
+            if name.lower() not in ignored_keys:
+                measurements[name] = meas_match.group(2)
             continue
         match = re.match(r"^\s*([A-Za-z_][\w.]*)\s*[:=]\s*([^\s]+)", line)
         if match:
-            measurements[match.group(1)] = match.group(2)
+            name = match.group(1)
+            if name.lower() not in ignored_keys:
+                measurements[name] = match.group(2)
     return measurements
 
 
@@ -811,6 +833,7 @@ TOOLS = {
                 "measures": {"type": "array", "items": {"type": "string"}},
                 "ltspice_path": {"type": "string"},
                 "report_path": {"type": "string"},
+                "tolerance_percent": {"type": "number"},
             },
         },
         "handler": tool_create_schematic_from_description,
@@ -847,7 +870,7 @@ def handle_request(request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return _jsonrpc_result(message_id, {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "ltspice-automation", "version": "0.2.0"},
+                "serverInfo": {"name": "ltspice-automation", "version": "0.3.0"},
             })
         if method == "notifications/initialized":
             return None

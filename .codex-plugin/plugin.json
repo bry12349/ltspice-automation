@@ -1,7 +1,7 @@
 {
   "name": "ltspice-automation",
-  "version": "0.2.0",
-  "description": "Create, simulate, parse, and report LTspice RC and RL step-response workflows.",
+  "version": "0.3.0",
+  "description": "Create, simulate, validate, parse, and report LTspice RC and RL step-response workflows.",
   "author": {
     "name": "bry12349",
     "url": "https://github.com/bry12349"
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "Ltspice Automation",
     "shortDescription": "Generate and verify LTspice RC/RL step-response circuits.",
-    "longDescription": "Local Codex tools that generate visible LTspice .asc schematics for RC low-pass and RL step-response circuits, run batch simulations, parse .log measurements, compare against first-order theory, and write Markdown simulation reports.",
+    "longDescription": "Local Codex tools that generate visible LTspice .asc schematics for RC low-pass and RL step-response circuits, run batch simulations, parse .log measurements, validate results against first-order theory, and write Markdown simulation reports with PASS/FAIL summaries.",
     "developerName": "bry12349",
     "category": "Developer Tools",
     "capabilities": [

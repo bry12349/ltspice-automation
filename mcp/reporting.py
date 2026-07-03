@@ -3,6 +3,11 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+try:
+    from mcp import validation
+except ImportError:
+    import validation
+
 
 def _normalize_spice_value(value: str) -> str:
     cleaned = value.strip().replace(" ", "")
@@ -99,6 +104,46 @@ def _percent_error(theory: Optional[float], simulation: Optional[float]) -> str:
     return f"{abs(simulation - theory) / denominator * 100:.4g}%"
 
 
+def _validation_summary(result: Dict[str, Any]) -> str:
+    summary = result.get("validation") or validation.validate_result(result)
+    lines = [
+        f"- Overall result: `{summary.get('status', 'FAIL')}`",
+        f"- Tolerance: `{_fmt(summary.get('tolerance_percent'), '%')}`",
+        f"- Max error: `{_fmt(summary.get('max_error_percent'), '%')}`",
+        "",
+        "| Measurement | Status | Theory | Simulation | Error |",
+        "| --- | --- | ---: | ---: | ---: |",
+    ]
+    for check in summary.get("checks") or []:
+        unit = check.get("unit") or ""
+        lines.append(
+            "| `{}` | `{}` | `{}` | `{}` | `{}` |".format(
+                check.get("measurement", "n/a"),
+                check.get("status", "n/a"),
+                _fmt(check.get("theory"), unit),
+                _fmt(check.get("simulation"), unit),
+                _fmt(check.get("percent_error"), "%"),
+            )
+        )
+    if not summary.get("checks"):
+        lines.append("| n/a | `FAIL` | n/a | n/a | n/a |")
+    return "\n".join(lines)
+
+
+def _reproduction_block(result: Dict[str, Any]) -> str:
+    simulation = result.get("simulation") or {}
+    command = simulation.get("command")
+    command_text = " ".join(command) if isinstance(command, list) else "simulation was not run"
+    return "\n".join(
+        [
+            f"- Schematic path: `{result.get('path', 'n/a')}`",
+            f"- Log path: `{((result.get('log') or {}).get('path') or 'n/a')}`",
+            f"- LTspice command: `{command_text}`",
+            f"- Working directory: `{simulation.get('cwd', 'n/a')}`",
+        ]
+    )
+
+
 def _theory_rows(result: Dict[str, Any], tau: Optional[float], vin: Optional[float]) -> str:
     measurements = ((result.get("log") or {}).get("measurements") or {})
     rows = ["| Measurement | Theory | Simulation | Error |", "| --- | ---: | ---: | ---: |"]
@@ -182,9 +227,17 @@ def render_rc_lowpass_report(result: Dict[str, Any]) -> str:
             "",
             _theory_rows(result, tau, vin),
             "",
+            "## Validation Summary",
+            "",
+            _validation_summary(result),
+            "",
             "## Warning/Error Summary",
             "",
             _warning_error_summary(log),
+            "",
+            "## Reproduction",
+            "",
+            _reproduction_block(result),
             "",
             "## Engineering Conclusion",
             "",
@@ -278,9 +331,17 @@ def render_rl_step_response_report(result: Dict[str, Any]) -> str:
             "",
             _rl_theory_rows(result, tau, final_current),
             "",
+            "## Validation Summary",
+            "",
+            _validation_summary(result),
+            "",
             "## Warning/Error Summary",
             "",
             _warning_error_summary(log),
+            "",
+            "## Reproduction",
+            "",
+            _reproduction_block(result),
             "",
             "## Engineering Conclusion",
             "",

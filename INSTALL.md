@@ -53,6 +53,8 @@ reports/rc_lowpass_report.md
 reports/rl_step_response_report.md
 ```
 
+In v0.3.0, these reports include validation PASS/FAIL status, max error, tolerance, and reproduction details.
+
 ## Available Workflows
 
 - RC low-pass step response.
@@ -60,6 +62,7 @@ reports/rl_step_response_report.md
 - Explicit SPICE netlist generation.
 - LTspice batch simulation.
 - `.log` and `.meas` parsing.
+- RC/RL theory validation.
 - Markdown report generation.
 
 ## Troubleshooting

@@ -63,6 +63,9 @@ def main():
     expected = 1 - math.exp(-1)
     if abs(measured - expected) > 0.002:
         raise RuntimeError(f"Unexpected vout_at_1ms measurement: {measurement}")
+    validation = result.get("validation") or {}
+    if validation.get("status") != "PASS":
+        raise RuntimeError(f"Validation did not pass: {validation}")
     report = result.get("report") or {}
     report_path = Path(report.get("path", ""))
     if not report_path.exists():
@@ -72,6 +75,9 @@ def main():
         "# RC Low-Pass Simulation Report",
         "## Circuit Parameters",
         "## Theory vs Simulation",
+        "## Validation Summary",
+        "Overall result: `PASS`",
+        "## Reproduction",
         "## Engineering Conclusion",
     ]:
         if required not in report_text:

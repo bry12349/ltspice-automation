@@ -63,10 +63,22 @@ def main():
     expected_1tau = 0.5 * (1 - math.exp(-1))
     if abs(measured_1tau - expected_1tau) > 0.002:
         raise RuntimeError(f"Unexpected i_at_1tau measurement: {measurements.get('i_at_1tau', '')}")
+    validation = result.get("validation") or {}
+    if validation.get("status") != "PASS":
+        raise RuntimeError(f"Validation did not pass: {validation}")
     report = result.get("report") or {}
     report_path = Path(report.get("path", ""))
     if not report_path.exists():
         raise RuntimeError(f"Expected RL report was not generated: {report_path}")
+    report_text = report_path.read_text(encoding="utf-8")
+    for required in [
+        "# RL Step Response Simulation Report",
+        "## Validation Summary",
+        "Overall result: `PASS`",
+        "## Reproduction",
+    ]:
+        if required not in report_text:
+            raise RuntimeError(f"RL report missing required section: {required}")
     print("RL smoke test passed")
     print(result["path"])
 

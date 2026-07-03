@@ -1,5 +1,56 @@
 # LTspice Automation Test Report
 
+## v0.3.0 Verification Update
+
+Date: 2026-07-03
+
+Scope: v0.3.0 reliability, validation, parser fixture coverage, report reproducibility, and plugin metadata update.
+
+### Commands Run
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m py_compile mcp/server.py mcp/reporting.py mcp/validation.py scripts/smoke_test.py scripts/rl_smoke_test.py tests/test_server.py tests/test_reporting.py tests/test_rl.py tests/test_validation.py
+python3 scripts/smoke_test.py
+python3 scripts/rl_smoke_test.py
+python3 /Users/a0000/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py /Users/a0000/plugins/ltspice-automation
+python3 /Users/a0000/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/ltspice-automation
+git diff --check
+```
+
+### Results
+
+- Unit tests: 15 tests passed.
+- Python compilation: passed.
+- RC smoke test: passed.
+- RL smoke test: passed.
+- Plugin manifest validation: passed.
+- Skill validation: passed.
+- Whitespace check: passed.
+
+### New Successful Coverage
+
+- RC validation marks clean measurements as PASS.
+- RL validation reports missing expected measurements as FAIL.
+- Report generation includes `Validation Summary` and `Reproduction` sections.
+- Smoke tests require generated validation status to be PASS.
+- Log parsing ignores common LTspice metadata such as `Circuit`, `solver`, and `temp`.
+
+### Generated Reports
+
+```text
+reports/rc_lowpass_report.md
+reports/rl_step_response_report.md
+```
+
+Both reports include PASS/FAIL validation summaries and LTspice reproduction details.
+
+### Remaining Gaps
+
+- Validation currently targets RC low-pass and RL series step-response only.
+- RLC, Buck converter, and parameter-sweep workflows remain future work.
+- No CI workflow is configured yet; tests are still local.
+
 Report date: 2026-07-01
 
 Scope: Phase 2 testing and environment report. This phase ran existing test entry points and checked the local LTspice environment. No functional code was modified.

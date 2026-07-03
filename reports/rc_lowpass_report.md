@@ -17,11 +17,6 @@
 
 ## Measurement Results
 
-- `Circuit`: `/Users/a0000/plugins/ltspice-automation/work/smoke/smoke-rc-lowpass.net`
-- `solver`: `Normal`
-- `tnom`: `27`
-- `temp`: `27`
-- `method`: `trap`
 - `vout_at_1ms`: `V(out) =0.631937031823 at 0.001`
 - `vout_at_5ms`: `V(out) =0.993258907545 at 0.005`
 - `tau_cross`: `V(out)=0.632121  AT 0.00100049816386`
@@ -34,10 +29,29 @@
 | `vout_at_5ms` | `0.993262 V` | `0.993259 V` | `0.0003167%` |
 | `tau_cross` | `0.001 s` | `0.0010005 s` | `0.04982%` |
 
+## Validation Summary
+
+- Overall result: `PASS`
+- Tolerance: `2 %`
+- Max error: `0.0498164 %`
+
+| Measurement | Status | Theory | Simulation | Error |
+| --- | --- | ---: | ---: | ---: |
+| `vout_at_1ms` | `PASS` | `0.632121 V` | `0.631937 V` | `0.0290335 %` |
+| `vout_at_5ms` | `PASS` | `0.993262 V` | `0.993259 V` | `0.000316679 %` |
+| `tau_cross` | `PASS` | `0.001 s` | `0.0010005 s` | `0.0498164 %` |
+
 ## Warning/Error Summary
 
 - Warnings: 0
 - Errors: 0
+
+## Reproduction
+
+- Schematic path: `/Users/a0000/plugins/ltspice-automation/work/smoke/smoke-rc-lowpass.asc`
+- Log path: `/Users/a0000/plugins/ltspice-automation/work/smoke/smoke-rc-lowpass.log`
+- LTspice command: `/Applications/LTspice.app/Contents/MacOS/LTspice -b /Users/a0000/plugins/ltspice-automation/work/smoke/smoke-rc-lowpass.asc`
+- Working directory: `/Users/a0000/plugins/ltspice-automation/work/smoke`
 
 ## Engineering Conclusion
 

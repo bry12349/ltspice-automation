@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.3.0 - Reliability, Validation, and Report Reproducibility
+
+Date: 2026-07-03
+
+### Added
+
+- Added `mcp/validation.py` for RC/RL theory-vs-simulation validation.
+- Added tolerance-based validation summaries with:
+  - overall PASS/FAIL status;
+  - per-measurement status;
+  - theory value;
+  - simulation value;
+  - absolute and percent error;
+  - generated timestamp.
+- Added `validation` output to `create_schematic_from_description` after simulation.
+- Added `tolerance_percent` input to `create_schematic_from_description`.
+- Added validation and reproduction sections to RC/RL Markdown reports.
+- Added parser fixture-style tests for warnings, errors, measurements, and LTspice metadata filtering.
+- Strengthened RC and RL smoke tests so they require validation PASS and report validation sections.
+
+### Fixed
+
+- Prevented common LTspice log metadata such as `Circuit`, `solver`, `temp`, `tnom`, and `method` from being reported as `.meas` measurements.
+- Updated plugin and MCP server versions to `0.3.0`.
+
+### Verification
+
+Commands run during development:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m py_compile mcp/server.py mcp/reporting.py mcp/validation.py scripts/smoke_test.py scripts/rl_smoke_test.py
+python3 scripts/smoke_test.py
+python3 scripts/rl_smoke_test.py
+```
+
+### Compatibility Impact
+
+- Existing RC/RL tool names remain unchanged.
+- Existing report paths remain unchanged.
+- `create_schematic_from_description` now returns an additional `validation` field.
+- Reports now include additional validation and reproduction sections.
+
 ## Phase 7.1 - Version and Documentation Consistency
 
 Date: 2026-07-01
