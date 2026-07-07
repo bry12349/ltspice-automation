@@ -1,5 +1,62 @@
 # LTspice Automation Test Report
 
+## v0.4.0 Verification Update
+
+Date: 2026-07-07
+
+Scope: v0.4.0 underdamped series RLC workflow, second-order validation, Markdown reporting, plugin metadata, and regression checks for existing RC/RL workflows.
+
+### Commands Run
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m py_compile mcp/server.py mcp/reporting.py mcp/validation.py scripts/smoke_test.py scripts/rl_smoke_test.py scripts/rlc_smoke_test.py tests/test_server.py tests/test_reporting.py tests/test_rl.py tests/test_rlc.py tests/test_validation.py
+python3 scripts/smoke_test.py
+python3 scripts/rl_smoke_test.py
+python3 scripts/rlc_smoke_test.py
+python3 /Users/a0000/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py /Users/a0000/plugins/ltspice-automation
+python3 /Users/a0000/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/ltspice-automation
+git diff --check
+```
+
+### Results
+
+- Unit tests: 20 tests passed.
+- Python compilation: passed.
+- RC smoke test: passed.
+- RL smoke test: passed.
+- RLC smoke test: passed.
+- Plugin manifest validation: passed.
+- Skill validation: passed.
+- Whitespace check: passed.
+
+### RLC Smoke Measurements
+
+```text
+vout_at_peak = 8.02316938361 V at 1.006115 ms
+peak_voltage = 8.02340507507 V
+vout_at_settle = 4.91175176096 V at 8 ms
+```
+
+### New Successful Coverage
+
+- RLC schematic generation with resistor, inductor, capacitor, `.tran`, and `.meas` directives.
+- RLC natural-language classification.
+- RLC theory validation for peak and settling sample points.
+- RLC Markdown report generation.
+- Real LTspice batch simulation for the underdamped series RLC workflow.
+
+### Generated Report
+
+```text
+reports/rlc_series_report.md
+```
+
+### Remaining Gaps
+
+- RLC support is limited to one underdamped series topology.
+- Parallel RLC, overdamped/critically damped RLC validation, waveform export, Buck converter, and parameter sweeps remain future work.
+
 ## v0.3.0 Verification Update
 
 Date: 2026-07-03

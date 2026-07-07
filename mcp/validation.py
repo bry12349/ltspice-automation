@@ -164,12 +164,102 @@ def _rl_checks(result: Dict[str, Any], tolerance_percent: float) -> List[Dict[st
     return checks
 
 
+def _rlc_parameters(result: Dict[str, Any]) -> Dict[str, Optional[float]]:
+    values = result.get("component_values") or {}
+    r_value = spice_number(normalize_spice_value(str(values.get("R1", ""))))
+    l_value = spice_number(normalize_spice_value(str(values.get("L1", ""))))
+    c_value = spice_number(normalize_spice_value(str(values.get("C1", ""))))
+    vin = source_final_voltage(str(values.get("V1", "")))
+    params: Dict[str, Optional[float]] = {
+        "r": r_value,
+        "l": l_value,
+        "c": c_value,
+        "vin": vin,
+        "omega_n": None,
+        "zeta": None,
+        "omega_d": None,
+        "peak_time": None,
+        "peak_voltage": None,
+        "settling_time": None,
+    }
+    if r_value in (None, 0) or l_value in (None, 0) or c_value in (None, 0) or vin is None:
+        return params
+    omega_n = 1 / math.sqrt(l_value * c_value)
+    zeta = r_value / 2 * math.sqrt(c_value / l_value)
+    params["omega_n"] = omega_n
+    params["zeta"] = zeta
+    if zeta < 1:
+        omega_d = omega_n * math.sqrt(1 - zeta**2)
+        overshoot = math.exp(-zeta * math.pi / math.sqrt(1 - zeta**2))
+        params["omega_d"] = omega_d
+        params["peak_time"] = math.pi / omega_d
+        params["peak_voltage"] = vin * (1 + overshoot)
+    if zeta > 0:
+        params["settling_time"] = 4 / (zeta * omega_n)
+    return params
+
+
+def _rlc_response(vin: Optional[float], omega_n: Optional[float], zeta: Optional[float], time_value: Optional[float]) -> Optional[float]:
+    if vin is None or omega_n is None or zeta is None or time_value is None:
+        return None
+    if zeta >= 1:
+        return None
+    omega_d = omega_n * math.sqrt(1 - zeta**2)
+    envelope = math.exp(-zeta * omega_n * time_value)
+    correction = math.cos(omega_d * time_value) + zeta / math.sqrt(1 - zeta**2) * math.sin(omega_d * time_value)
+    return vin * (1 - envelope * correction)
+
+
+def _rlc_checks(result: Dict[str, Any], tolerance_percent: float) -> List[Dict[str, Any]]:
+    params = _rlc_parameters(result)
+    measurements = ((result.get("log") or {}).get("measurements") or {})
+    checks: List[Dict[str, Any]] = []
+
+    raw_peak_sample = measurements.get("vout_at_peak")
+    peak_sample_time = measurement_time(raw_peak_sample) if raw_peak_sample else params.get("peak_time")
+    checks.append(
+        _check(
+            "vout_at_peak",
+            _rlc_response(params.get("vin"), params.get("omega_n"), params.get("zeta"), peak_sample_time),
+            measurement_value(raw_peak_sample) if raw_peak_sample else None,
+            "V",
+            tolerance_percent,
+        )
+    )
+
+    raw_peak = measurements.get("peak_voltage")
+    checks.append(
+        _check(
+            "peak_voltage",
+            params.get("peak_voltage"),
+            measurement_value(raw_peak) if raw_peak else None,
+            "V",
+            tolerance_percent,
+        )
+    )
+
+    raw_settle = measurements.get("vout_at_settle")
+    settle_time = measurement_time(raw_settle) if raw_settle else params.get("settling_time")
+    checks.append(
+        _check(
+            "vout_at_settle",
+            _rlc_response(params.get("vin"), params.get("omega_n"), params.get("zeta"), settle_time),
+            measurement_value(raw_settle) if raw_settle else None,
+            "V",
+            tolerance_percent,
+        )
+    )
+    return checks
+
+
 def validate_result(result: Dict[str, Any], tolerance_percent: float = 2.0) -> Dict[str, Any]:
     circuit_type = result.get("circuit_type")
     if circuit_type == "rc_lowpass":
         checks = _rc_checks(result, tolerance_percent)
     elif circuit_type == "rl_step_response":
         checks = _rl_checks(result, tolerance_percent)
+    elif circuit_type == "rlc_series_step":
+        checks = _rlc_checks(result, tolerance_percent)
     else:
         checks = []
 

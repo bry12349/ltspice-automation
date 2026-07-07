@@ -1,8 +1,8 @@
 interface:
   display_name: "LTspice Automation"
-  short_description: "Generate and verify RC/RL LTspice circuits."
+  short_description: "Generate and verify RC/RL/RLC LTspice circuits."
   brand_color: "#2563EB"
-  default_prompt: "Use $ltspice-automation to create and simulate a first-order LTspice circuit."
+  default_prompt: "Use $ltspice-automation to create and simulate an RC, RL, or underdamped RLC LTspice circuit."
 
 dependencies:
   tools:

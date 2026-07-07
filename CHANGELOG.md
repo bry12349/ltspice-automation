@@ -1,5 +1,72 @@
 # Changelog
 
+## v0.4.0 - Underdamped Series RLC Workflow
+
+Date: 2026-07-07
+
+### Added
+
+- Added constrained underdamped series RLC step-response workflow.
+- Added `create_rlc_schematic` MCP tool.
+- Extended `create_schematic_from_description` to classify constrained RLC requests.
+- Added RLC `.tran` and `.meas` generation:
+  - `vout_at_peak`;
+  - `peak_voltage`;
+  - `vout_at_settle`.
+- Added RLC second-order validation for:
+  - natural frequency;
+  - damping ratio;
+  - damped natural frequency;
+  - peak time;
+  - peak voltage;
+  - settling sample point.
+- Added RLC Markdown report generation at `reports/rlc_series_report.md`.
+- Added `scripts/rlc_smoke_test.py` for real LTspice RLC regression testing.
+- Added RLC unit tests covering schematic generation, natural-language integration, validation, and reporting.
+- Added `docs/RLC_TEMPLATE_DESIGN.md` and `docs/V0_4_ITERATION_PLAN.md`.
+
+### Fixed/Improved
+
+- Updated plugin metadata, skill instructions, README, install docs, roadmap, and test report for v0.4.0.
+- Preserved existing RC low-pass and RL step-response workflows.
+
+### Verification
+
+Commands run:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m py_compile mcp/server.py mcp/reporting.py mcp/validation.py scripts/smoke_test.py scripts/rl_smoke_test.py scripts/rlc_smoke_test.py tests/test_server.py tests/test_reporting.py tests/test_rl.py tests/test_rlc.py tests/test_validation.py
+python3 scripts/smoke_test.py
+python3 scripts/rl_smoke_test.py
+python3 scripts/rlc_smoke_test.py
+python3 /Users/a0000/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py /Users/a0000/plugins/ltspice-automation
+python3 /Users/a0000/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/ltspice-automation
+git diff --check
+```
+
+Real RLC smoke result:
+
+```text
+vout_at_peak = 8.02316938361 V at 0.001006115 s
+peak_voltage = 8.02340507507 V
+vout_at_settle = 4.91175176096 V at 0.008 s
+```
+
+### Compatibility Impact
+
+- Existing RC/RL tool names and report paths remain unchanged.
+- `create_schematic_from_description` now supports `circuit_type=rlc_series_step`.
+- Tool list now includes `create_rlc_schematic`.
+- The plugin is still scoped to verified RC/RL/RLC workflows and explicit custom netlists.
+
+### Remaining Improvements
+
+- Add overdamped and critically damped RLC validation modes.
+- Add waveform image export for RLC overshoot/ringing visualization.
+- Add parameter sweeps after current single-run reports remain stable.
+- Keep Buck converter as a separate future phase.
+
 ## v0.3.0 - Reliability, Validation, and Report Reproducibility
 
 Date: 2026-07-03

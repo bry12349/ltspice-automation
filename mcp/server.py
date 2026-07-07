@@ -220,6 +220,33 @@ def tool_create_rl_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def tool_create_rlc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
+    title = str(args.get("title") or "RLC series step response schematic")
+    output_dir = _expand_path(args.get("output_dir")) or Path.cwd()
+    filename = _sanitize_filename(str(args.get("filename") or title)) + ".asc"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / filename
+    if path.exists() and not args.get("overwrite", False):
+        raise RuntimeError(f"Refusing to overwrite existing file: {path}")
+
+    resistance = str(args.get("resistance") or "10")
+    inductance = str(args.get("inductance") or "10m")
+    capacitance = str(args.get("capacitance") or "10u")
+    source = str(args.get("source") or "PULSE(0 5 0 1u 1u 100m 200m)")
+    analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
+    measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)
+    lines = _rlc_series_asc(title, resistance, inductance, capacitance, source, analysis, measures)
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {
+        "path": str(path),
+        "lines": lines,
+        "circuit_type": "rlc_series_step",
+        "component_values": {"R1": resistance, "L1": inductance, "C1": capacitance, "V1": source},
+        "analysis": analysis,
+    }
+
+
 def _parse_value(description: str, names: List[str], default: str) -> str:
     joined = "|".join(re.escape(name) for name in names)
     patterns = [
@@ -385,6 +412,61 @@ def _default_rl_analysis(resistance: str, inductance: str) -> str:
     return f".tran 0 {_format_spice_time(6 * l_value / r_value)} 0 10u"
 
 
+def _rlc_parameters(resistance: str, inductance: str, capacitance: str, source: str) -> Optional[Dict[str, float]]:
+    r_value = _spice_number(_normalize_spice_value(resistance))
+    l_value = _spice_number(_normalize_spice_value(inductance))
+    c_value = _spice_number(_normalize_spice_value(capacitance))
+    final_voltage = _source_final_voltage(source)
+    if r_value in (None, 0) or l_value in (None, 0) or c_value in (None, 0) or final_voltage is None:
+        return None
+    omega_n = 1 / (l_value * c_value) ** 0.5
+    zeta = r_value / 2 * (c_value / l_value) ** 0.5
+    settling_time = 4 / (zeta * omega_n) if zeta > 0 else 0.016
+    result = {
+        "omega_n": omega_n,
+        "zeta": zeta,
+        "settling_time": settling_time,
+        "tstop": 2 * settling_time,
+    }
+    if zeta < 1:
+        omega_d = omega_n * (1 - zeta**2) ** 0.5
+        result["omega_d"] = omega_d
+        result["peak_time"] = 3.141592653589793 / omega_d
+    return result
+
+
+def _default_rlc_analysis(resistance: str, inductance: str, capacitance: str) -> str:
+    params = _rlc_parameters(resistance, inductance, capacitance, "DC 5")
+    if not params:
+        return ".tran 0 16m 0 10u"
+    return f".tran 0 {_format_spice_time(params['tstop'])} 0 10u"
+
+
+def _default_rlc_measures(resistance: str, inductance: str, capacitance: str, source: str) -> List[str]:
+    params = _rlc_parameters(resistance, inductance, capacitance, source)
+    if not params or "peak_time" not in params:
+        return [
+            ".meas tran vout_at_peak FIND V(out) AT=1m",
+            ".meas tran peak_voltage MAX V(out) FROM=0 TO=16m",
+            ".meas tran vout_at_settle FIND V(out) AT=8m",
+        ]
+    peak_time = _format_spice_time(params["peak_time"])
+    settle_time = _format_spice_time(params["settling_time"])
+    tstop = _format_spice_time(params["tstop"])
+    return [
+        f".meas tran vout_at_peak FIND V(out) AT={peak_time}",
+        f".meas tran peak_voltage MAX V(out) FROM=0 TO={tstop}",
+        f".meas tran vout_at_settle FIND V(out) AT={settle_time}",
+    ]
+
+
+def _long_step_source(source: str) -> str:
+    final_voltage = _source_final_voltage(source)
+    if final_voltage is None:
+        return source
+    return f"PULSE(0 {_format_spice_decimal(final_voltage)} 0 1u 1u 100m 200m)"
+
+
 def _safe_asc_comment(text: str) -> str:
     ascii_text = text.encode("ascii", "ignore").decode("ascii")
     ascii_text = re.sub(r"[^A-Za-z0-9 _.,:;()\\[\\]/+=*#-]+", "", ascii_text).strip()
@@ -393,6 +475,8 @@ def _safe_asc_comment(text: str) -> str:
 
 def _classify_description(description: str) -> str:
     text = description.lower()
+    if re.search(r"\brlc\b", text) or "二阶" in text or "second-order" in text or "second order" in text:
+        return "rlc_series_step"
     if re.search(r"\brl\b", text) or "电感" in text or "inductor" in text:
         return "rl_step_response"
     if any(token in text for token in ["高通", "high pass", "high-pass", "highpass"]):
@@ -473,6 +557,37 @@ def _rl_step_asc(title: str, resistance: str, inductance: str, source: str, anal
         "SYMBOL ind 304 128 R270",
         "SYMATTR InstName L1",
         f"SYMATTR Value {inductance}",
+        f"TEXT 80 352 Left 2 !{analysis}",
+    ]
+    return _append_directives(lines, title, measures)
+
+
+def _rlc_series_asc(title: str, resistance: str, inductance: str, capacitance: str, source: str, analysis: str, measures: List[str]) -> List[str]:
+    lines = _schematic_common_header() + [
+        "WIRE 176 112 96 112",
+        "WIRE 320 112 240 112",
+        "WIRE 464 112 384 112",
+        "WIRE 464 160 464 112",
+        "WIRE 96 224 96 112",
+        "WIRE 464 256 464 224",
+        "WIRE 464 304 464 256",
+        "WIRE 96 304 96 288",
+        "WIRE 464 304 96 304",
+        "FLAG 96 304 0",
+        "FLAG 96 112 in",
+        "FLAG 464 112 out",
+        "SYMBOL voltage 96 192 R0",
+        "SYMATTR InstName V1",
+        f"SYMATTR Value {source}",
+        "SYMBOL res 160 128 R270",
+        "SYMATTR InstName R1",
+        f"SYMATTR Value {resistance}",
+        "SYMBOL ind 304 128 R270",
+        "SYMATTR InstName L1",
+        f"SYMATTR Value {inductance}",
+        "SYMBOL cap 448 160 R0",
+        "SYMATTR InstName C1",
+        f"SYMATTR Value {capacitance}",
         f"TEXT 80 352 Left 2 !{analysis}",
     ]
     return _append_directives(lines, title, measures)
@@ -575,7 +690,7 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
 
     if circuit_type in ["rc_lowpass", "rc_highpass"]:
         if circuit_type != "rc_lowpass":
-            raise RuntimeError("The natural-language visual schematic generator currently supports rc_lowpass and rl_step_response. Use create_netlist for other circuits until their .asc templates are verified.")
+            raise RuntimeError("The natural-language visual schematic generator currently supports rc_lowpass, rl_step_response, and rlc_series_step. Use create_netlist for other circuits until their .asc templates are verified.")
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "1k"))
         capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "1u"))
         analysis = str(args.get("analysis") or _default_rc_analysis(resistance, capacitance))
@@ -589,10 +704,20 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
         measures = args.get("measures") or _default_rl_measures(resistance, inductance, source)
         lines = _rl_step_asc(title, resistance, inductance, source, analysis, measures)
         component_values = {"R1": resistance, "L1": inductance, "V1": source}
+    elif circuit_type == "rlc_series_step":
+        if not args.get("source"):
+            source = _long_step_source(source)
+        resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "10"))
+        inductance = str(args.get("inductance") or _parse_value(description, ["电感", "l", "inductor", "inductance"], "10m"))
+        capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "10u"))
+        analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
+        measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)
+        lines = _rlc_series_asc(title, resistance, inductance, capacitance, source, analysis, measures)
+        component_values = {"R1": resistance, "L1": inductance, "C1": capacitance, "V1": source}
     elif circuit_type == "voltage_divider":
-        raise RuntimeError("The natural-language visual schematic generator currently supports rc_lowpass and rl_step_response. Use create_netlist for other circuits until their .asc templates are verified.")
+        raise RuntimeError("The natural-language visual schematic generator currently supports rc_lowpass, rl_step_response, and rlc_series_step. Use create_netlist for other circuits until their .asc templates are verified.")
     else:
-        raise RuntimeError("Unsupported circuit_type. Use rc_lowpass or rl_step_response.")
+        raise RuntimeError("Unsupported circuit_type. Use rc_lowpass, rl_step_response, or rlc_series_step.")
 
     path = _write_schematic(output_dir, filename, lines, overwrite)
     result: Dict[str, Any] = {
@@ -621,6 +746,10 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
             result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 2.0))
             report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rl_step_response_report.md")
             result["report"] = reporting.generate_rl_step_response_report(result, report_path)
+        elif circuit_type == "rlc_series_step":
+            result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 3.0))
+            report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rlc_series_report.md")
+            result["report"] = reporting.generate_rlc_series_report(result, report_path)
     if args.get("open", True):
         result["opened"] = tool_open_schematic({"path": str(path), "ltspice_path": args.get("ltspice_path")})
     return result
@@ -808,6 +937,25 @@ TOOLS = {
         },
         "handler": tool_create_rl_schematic,
     },
+    "create_rlc_schematic": {
+        "description": "Create a visible LTspice .asc schematic for an underdamped series RLC step-response circuit.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "output_dir": {"type": "string"},
+                "filename": {"type": "string"},
+                "overwrite": {"type": "boolean"},
+                "resistance": {"type": "string"},
+                "inductance": {"type": "string"},
+                "capacitance": {"type": "string"},
+                "source": {"type": "string"},
+                "analysis": {"type": "string"},
+                "measures": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "handler": tool_create_rlc_schematic,
+    },
     "create_schematic_from_description": {
         "description": "Convert a natural-language circuit request into a visible LTspice .asc schematic, optionally simulate it, and open it in LTspice.",
         "inputSchema": {
@@ -815,7 +963,7 @@ TOOLS = {
             "required": ["description"],
             "properties": {
                 "description": {"type": "string"},
-                "circuit_type": {"type": "string", "enum": ["rc_lowpass", "rl_step_response"]},
+                "circuit_type": {"type": "string", "enum": ["rc_lowpass", "rl_step_response", "rlc_series_step"]},
                 "title": {"type": "string"},
                 "output_dir": {"type": "string"},
                 "filename": {"type": "string"},
@@ -870,7 +1018,7 @@ def handle_request(request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return _jsonrpc_result(message_id, {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "ltspice-automation", "version": "0.3.0"},
+                "serverInfo": {"name": "ltspice-automation", "version": "0.4.0"},
             })
         if method == "notifications/initialized":
             return None

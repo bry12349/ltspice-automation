@@ -154,6 +154,8 @@ Shows transfer of first-order transient theory from capacitor voltage to inducto
 
 ## Phase 4: Add RLC Second-Order Response
 
+Status: completed in v0.4.0 for one constrained underdamped series RLC topology.
+
 Before starting Phase 4, v0.3.0 completed an intermediate reliability phase:
 
 - RC/RL simulation results now include tolerance-based validation summaries.
@@ -184,10 +186,10 @@ Add a second-order circuit template to demonstrate more advanced transient behav
 
 ### Acceptance Criteria
 
-- One RLC topology is documented and tested.
-- Simulation produces expected second-order behavior.
-- Report explains damping category and measured response.
-- RC and RL workflows remain passing.
+- One RLC topology is documented and tested. Completed with `docs/RLC_TEMPLATE_DESIGN.md`.
+- Simulation produces expected second-order behavior. Completed with `scripts/rlc_smoke_test.py`.
+- Report explains damping category and measured response. Completed with `reports/rlc_series_report.md`.
+- RC and RL workflows remain passing. Verified with existing smoke tests.
 
 ### Risks
 
@@ -197,6 +199,16 @@ Add a second-order circuit template to demonstrate more advanced transient behav
 ### Resume Value
 
 Demonstrates second-order system analysis, damping concepts, and simulation interpretation.
+
+### v0.4.0 Notes
+
+The implemented template is intentionally narrow:
+
+- series RLC only;
+- capacitor voltage output only;
+- underdamped default values only;
+- no parallel RLC;
+- no overdamped or critically damped validation yet.
 
 ## Phase 5: Add Buck Converter
 

@@ -37,6 +37,7 @@ From the plugin root:
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/smoke_test.py
 python3 scripts/rl_smoke_test.py
+python3 scripts/rlc_smoke_test.py
 ```
 
 Expected smoke output:
@@ -44,6 +45,7 @@ Expected smoke output:
 ```text
 Smoke test passed
 RL smoke test passed
+RLC smoke test passed
 ```
 
 Generated reports:
@@ -51,18 +53,20 @@ Generated reports:
 ```text
 reports/rc_lowpass_report.md
 reports/rl_step_response_report.md
+reports/rlc_series_report.md
 ```
 
-In v0.3.0, these reports include validation PASS/FAIL status, max error, tolerance, and reproduction details.
+In v0.4.0, these reports include validation PASS/FAIL status, max error, tolerance, and reproduction details.
 
 ## Available Workflows
 
 - RC low-pass step response.
 - RL series step response.
+- Underdamped series RLC step response.
 - Explicit SPICE netlist generation.
 - LTspice batch simulation.
 - `.log` and `.meas` parsing.
-- RC/RL theory validation.
+- RC/RL/RLC theory validation.
 - Markdown report generation.
 
 ## Troubleshooting

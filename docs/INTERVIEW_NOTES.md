@@ -2,7 +2,7 @@
 
 ## One-Minute Project Explanation
 
-This project is a local Codex plugin for LTspice automation. It takes a constrained natural-language request, generates a visible LTspice `.asc` schematic for an RC low-pass step-response circuit, runs LTspice in batch mode, parses `.log` and `.meas` results, and checks the result against first-order RC theory.
+This project is a local Codex plugin for LTspice automation. It takes a constrained natural-language request, generates a visible LTspice `.asc` schematic for RC, RL, or an underdamped series RLC step-response circuit, runs LTspice in batch mode, parses `.log` and `.meas` results, and checks the result against circuit theory.
 
 The core idea is not "AI magically designs any circuit." The stronger engineering point is that the workflow is bounded, deterministic, and verified. It uses AI-assisted input as the front end, but relies on LTspice simulation and measured outputs before treating the generated circuit as valid.
 
@@ -22,14 +22,17 @@ Natural-language request
 
 Then emphasize the boundary:
 
-- Stable today: RC low-pass and RL series step response.
-- Verified with: unit tests plus LTspice smoke test.
-- Planned next: RLC, Buck converter, and parameter sweeps.
+- Stable today: RC low-pass, RL series step response, and one underdamped series RLC step response.
+- Verified with: unit tests plus RC/RL/RLC LTspice smoke tests.
+- Planned next: overdamped/critically damped RLC cases, Buck converter, and parameter sweeps.
 
 ## Electrical Engineering Skills Demonstrated
 
 - First-order RC transient analysis.
+- First-order RL transient analysis.
+- Second-order RLC transient analysis.
 - Understanding of time constant behavior: 1 tau and 5 tau response points.
+- Understanding of natural frequency, damping ratio, damped natural frequency, peak time, and overshoot.
 - LTspice schematic and batch simulation workflow.
 - SPICE directives such as `.tran` and `.meas`.
 - Measurement-driven validation instead of relying on generated files alone.
@@ -59,7 +62,7 @@ Then emphasize the boundary:
 
 Pick one or two depending on the role:
 
-- Built a local Codex/LTspice automation plugin that generates visible RC low-pass schematics, runs LTspice batch simulations, parses `.meas` output, and validates results against first-order RC theory.
+- Built a local Codex/LTspice automation plugin that generates visible RC, RL, and underdamped RLC schematics, runs LTspice batch simulations, parses `.meas` output, and validates results against circuit theory.
 - Developed a Python MCP server for circuit-simulation automation with deterministic `.asc` generation, subprocess-based LTspice execution, log parsing, and regression tests.
 - Implemented a bounded AI-assisted engineering workflow that converts constrained natural-language circuit requests into verified LTspice simulation artifacts.
 
@@ -94,6 +97,31 @@ Phase 3 improvement:
 - The tool no longer assumes `1 ms` always means `1 tau`.
 - For `R=2k` and `C=1uF`, tau is `2 ms`, so measurements move to `2 ms` and `10 ms`.
 - The tau-cross target scales with input voltage, so a 5 V step uses about `3.1606 V`.
+
+## RL Circuit Theory Points
+
+For a series RL circuit with a step input:
+
+```text
+tau = L / R
+I_final = Vin / R
+i(t) = I_final * (1 - exp(-t / tau))
+```
+
+The tool measures inductor current at 1 tau and 5 tau, then compares those points to theory.
+
+## RLC Circuit Theory Points
+
+For the underdamped series RLC template with capacitor voltage as output:
+
+```text
+omega_n = 1 / sqrt(L * C)
+zeta = R / 2 * sqrt(C / L)
+omega_d = omega_n * sqrt(1 - zeta^2)
+peak_time = pi / omega_d
+```
+
+The default `R=10`, `L=10mH`, `C=10uF`, `Vin=5V` example has `zeta ~= 0.158`, so it overshoots. The simulator reports a peak near `8.023 V`, which matches the second-order theory check.
 
 ## LTspice File Types
 
@@ -145,15 +173,19 @@ The original measurement logic assumed every RC circuit had `tau = 1 ms` and `Vi
 
 ### What are the limitations?
 
-The natural-language schematic generator currently supports constrained RC low-pass and RL step-response workflows. GUI opening is macOS-specific. Log parsing is useful but still basic. RLC, Buck converter, and parameter sweeps are future work.
+The natural-language schematic generator currently supports constrained RC low-pass, RL step-response, and underdamped series RLC workflows. GUI opening is macOS-specific. RLC support is one topology only. Buck converter and parameter sweeps are future work.
 
 ### How did you extend this to RL?
 
 I first wrote the RL template design, then added a constrained series RL `.asc` template with `tau = L/R`, final current `I_final = Vin/R`, `.tran`, and `.meas` directives for current at 1 tau and 5 tau. I verified the generated LTspice netlist and fixed the inductor symbol orientation so `I(L1)` measured the expected current.
 
+### How did you extend this to RLC?
+
+I added one underdamped series RLC template instead of trying to support every RLC topology. The tool computes natural frequency, damping ratio, damped natural frequency, peak time, and expected peak voltage. It measures capacitor voltage at the theoretical peak time, extracts the maximum voltage, samples a settling point, and validates all three against theory.
+
 ### How would you extend this to Buck converter?
 
-I would not jump directly from RC to Buck converter. Buck converters need switching behavior, duty cycle, inductor ripple, diode/MOSFET models, load conditions, and stability concerns. I would first add RL and RLC templates, then implement a constrained Buck template with clear assumptions and tests.
+I would not jump directly from passive RLC to a broad Buck generator. Buck converters need switching behavior, duty cycle, inductor ripple, diode/MOSFET models, load conditions, and stability concerns. I would implement one constrained Buck template with clear assumptions and tests.
 
 ### What did you learn from this project?
 

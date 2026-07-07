@@ -284,6 +284,71 @@ def _rl_theory_rows(result: Dict[str, Any], tau: Optional[float], final_current:
     return "\n".join(rows)
 
 
+def _rlc_parameters(result: Dict[str, Any]) -> Dict[str, Optional[float]]:
+    component_values = result.get("component_values") or {}
+    resistance = str(component_values.get("R1", ""))
+    inductance = str(component_values.get("L1", ""))
+    capacitance = str(component_values.get("C1", ""))
+    source = str(component_values.get("V1", ""))
+    r_value = _spice_number(_normalize_spice_value(resistance))
+    l_value = _spice_number(_normalize_spice_value(inductance))
+    c_value = _spice_number(_normalize_spice_value(capacitance))
+    vin = _source_final_voltage(source)
+    params: Dict[str, Optional[float]] = {
+        "r": r_value,
+        "l": l_value,
+        "c": c_value,
+        "vin": vin,
+        "omega_n": None,
+        "zeta": None,
+        "omega_d": None,
+        "peak_time": None,
+        "peak_voltage": None,
+        "settling_time": None,
+    }
+    if r_value in (None, 0) or l_value in (None, 0) or c_value in (None, 0) or vin is None:
+        return params
+    omega_n = 1 / math.sqrt(l_value * c_value)
+    zeta = r_value / 2 * math.sqrt(c_value / l_value)
+    params["omega_n"] = omega_n
+    params["zeta"] = zeta
+    if zeta < 1:
+        omega_d = omega_n * math.sqrt(1 - zeta**2)
+        overshoot = math.exp(-zeta * math.pi / math.sqrt(1 - zeta**2))
+        params["omega_d"] = omega_d
+        params["peak_time"] = math.pi / omega_d
+        params["peak_voltage"] = vin * (1 + overshoot)
+    if zeta > 0:
+        params["settling_time"] = 4 / (zeta * omega_n)
+    return params
+
+
+def _rlc_response(vin: Optional[float], omega_n: Optional[float], zeta: Optional[float], time_value: Optional[float]) -> Optional[float]:
+    if vin is None or omega_n is None or zeta is None or time_value is None or zeta >= 1:
+        return None
+    omega_d = omega_n * math.sqrt(1 - zeta**2)
+    envelope = math.exp(-zeta * omega_n * time_value)
+    correction = math.cos(omega_d * time_value) + zeta / math.sqrt(1 - zeta**2) * math.sin(omega_d * time_value)
+    return vin * (1 - envelope * correction)
+
+
+def _rlc_theory_rows(result: Dict[str, Any], params: Dict[str, Optional[float]]) -> str:
+    measurements = ((result.get("log") or {}).get("measurements") or {})
+    rows = ["| Measurement | Theory | Simulation | Error |", "| --- | ---: | ---: | ---: |"]
+    for name, raw in measurements.items():
+        if name not in {"vout_at_peak", "peak_voltage", "vout_at_settle"}:
+            continue
+        sim_value = _measurement_value(raw)
+        if name == "peak_voltage":
+            theory = params.get("peak_voltage")
+        else:
+            theory = _rlc_response(params.get("vin"), params.get("omega_n"), params.get("zeta"), _measurement_time(raw))
+        rows.append(f"| `{name}` | `{_fmt(theory, 'V')}` | `{_fmt(sim_value, 'V')}` | `{_percent_error(theory, sim_value)}` |")
+    if len(rows) == 2:
+        rows.append("| n/a | n/a | n/a | n/a |")
+    return "\n".join(rows)
+
+
 def render_rl_step_response_report(result: Dict[str, Any]) -> str:
     component_values = result.get("component_values") or {}
     resistance = str(component_values.get("R1", "n/a"))
@@ -360,4 +425,84 @@ def render_rl_step_response_report(result: Dict[str, Any]) -> str:
 def generate_rl_step_response_report(result: Dict[str, Any], report_path: Path) -> Dict[str, str]:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(render_rl_step_response_report(result), encoding="utf-8")
+    return {"path": str(report_path)}
+
+
+def render_rlc_series_report(result: Dict[str, Any]) -> str:
+    component_values = result.get("component_values") or {}
+    resistance = str(component_values.get("R1", "n/a"))
+    inductance = str(component_values.get("L1", "n/a"))
+    capacitance = str(component_values.get("C1", "n/a"))
+    source = str(component_values.get("V1", "n/a"))
+    params = _rlc_parameters(result)
+    log = result.get("log")
+    status = result.get("simulation_status") or {}
+
+    conclusion = "Simulation completed without parser-detected errors."
+    if status.get("ok") is False:
+        conclusion = f"Simulation needs review: {status.get('reason', 'unknown_reason')}."
+    elif status.get("ok") is None:
+        conclusion = "Simulation was not run, so measurements are not validated."
+
+    return "\n".join(
+        [
+            "# RLC Series Step Response Simulation Report",
+            "",
+            "## Circuit Parameters",
+            "",
+            "- Circuit name: RLC series step response",
+            f"- Schematic: `{result.get('path', 'n/a')}`",
+            f"- R1: `{resistance}`",
+            f"- L1: `{inductance}`",
+            f"- C1: `{capacitance}`",
+            f"- V1: `{source}`",
+            f"- Natural frequency: `{_fmt(params.get('omega_n'), 'rad/s')}`",
+            f"- Damping ratio: `{_fmt(params.get('zeta'))}`",
+            f"- Damped natural frequency: `{_fmt(params.get('omega_d'), 'rad/s')}`",
+            f"- Peak time: `{_fmt(params.get('peak_time'), 's')}`",
+            f"- Expected peak voltage: `{_fmt(params.get('peak_voltage'), 'V')}`",
+            "",
+            "## Simulation Settings",
+            "",
+            f"- Analysis: `{result.get('analysis', 'n/a')}`",
+            f"- Status: `{status.get('reason', 'unknown')}`",
+            "",
+            "## Measurement Results",
+            "",
+            "\n".join(f"- `{name}`: `{value}`" for name, value in ((log or {}).get("measurements") or {}).items())
+            or "- No measurements were parsed.",
+            "",
+            "## Theory vs Simulation",
+            "",
+            _rlc_theory_rows(result, params),
+            "",
+            "## Validation Summary",
+            "",
+            _validation_summary(result),
+            "",
+            "## Warning/Error Summary",
+            "",
+            _warning_error_summary(log),
+            "",
+            "## Reproduction",
+            "",
+            _reproduction_block(result),
+            "",
+            "## Engineering Conclusion",
+            "",
+            conclusion,
+            "",
+            "## Follow-Up Improvements",
+            "",
+            "- Add overdamped and critically damped RLC validation cases after the underdamped template is stable.",
+            "- Add waveform image export to show overshoot and ringing visually.",
+            "- Keep Buck converter work separate because switching converters require different simulation assumptions.",
+            "",
+        ]
+    )
+
+
+def generate_rlc_series_report(result: Dict[str, Any], report_path: Path) -> Dict[str, str]:
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(render_rlc_series_report(result), encoding="utf-8")
     return {"path": str(report_path)}

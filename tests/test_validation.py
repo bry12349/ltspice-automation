@@ -52,6 +52,12 @@ class ValidationTests(unittest.TestCase):
         missing = [check for check in summary["checks"] if check["status"] == "MISSING"]
         self.assertTrue(any(check["measurement"] == "i_at_5tau" for check in missing))
 
+    def test_unknown_circuit_validation_returns_fail(self):
+        summary = validation.validate_result({"circuit_type": "unknown"}, tolerance_percent=1.0)
+
+        self.assertEqual(summary["status"], "FAIL")
+        self.assertEqual(summary["checks"], [])
+
 
 class FixtureLogParsingTests(unittest.TestCase):
     def test_parse_log_fixture_extracts_warning_error_and_measurement(self):

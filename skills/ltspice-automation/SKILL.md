@@ -1,6 +1,6 @@
 ---
 name: ltspice-automation
-description: Generate visible LTspice RC low-pass or RL step-response schematics, run LTspice simulations, parse .log/.meas results, validate first-order theory against simulation, and produce Markdown reports with PASS/FAIL summaries. Use for LTspice schematic generation, transient simulation, measurement extraction, validation, or troubleshooting this plugin's RC/RL workflows.
+description: Generate visible LTspice RC low-pass, RL step-response, or underdamped series RLC step-response schematics, run LTspice simulations, parse .log/.meas results, validate circuit theory against simulation, and produce Markdown reports with PASS/FAIL summaries. Use for LTspice schematic generation, transient simulation, measurement extraction, validation, or troubleshooting this plugin's RC/RL/RLC workflows.
 ---
 
 # LTspice Automation
@@ -11,15 +11,16 @@ Use this skill for LTspice workflows involving visible `.asc` schematics, SPICE 
 
 - RC low-pass step response.
 - RL series step response.
+- Underdamped series RLC step response.
 - Explicit `.cir` netlist creation from caller-provided SPICE lines.
 - LTspice batch simulation and `.log` parsing.
 - Theory validation with tolerance-based PASS/FAIL checks.
-- Markdown reports for stable RC/RL step-response simulations.
+- Markdown reports for stable RC/RL/RLC step-response simulations.
 
 ## Standard Workflow
 
 1. Call `detect_ltspice` before promising simulation.
-2. For visible first-order circuits, call `create_schematic_from_description`.
+2. For visible RC/RL/RLC circuits, call `create_schematic_from_description`.
 3. Set `open=false` when the user asks for a file-only or headless workflow.
 4. Leave `simulate=true` unless the user asks only for schematic generation.
 5. Check `simulation_status.ok`, `.log` warnings/errors, and parsed measurements before explaining results.
@@ -73,12 +74,38 @@ Default report:
 reports/rl_step_response_report.md
 ```
 
+## RLC Series Step-Response Requests
+
+Use RLC when the request mentions an RLC circuit, second-order response, ringing, overshoot, damping ratio, or `RLC step`.
+
+Expected parameters:
+
+- `R` or resistance;
+- `L` or inductance;
+- `C` or capacitance;
+- `Vin` or step amplitude.
+
+Theory:
+
+```text
+omega_n = 1 / sqrt(L * C)
+zeta = R / 2 * sqrt(C / L)
+omega_d = omega_n * sqrt(1 - zeta^2)
+```
+
+Default report:
+
+```text
+reports/rlc_series_report.md
+```
+
 ## Tool Selection
 
 - `detect_ltspice`: find LTspice executable and version.
-- `create_schematic_from_description`: preferred entry point for natural-language RC/RL schematic generation, simulation, parsing, and reporting.
+- `create_schematic_from_description`: preferred entry point for natural-language RC/RL/RLC schematic generation, simulation, parsing, and reporting.
 - `create_rc_schematic`: file-only RC `.asc` generation from explicit parameters.
 - `create_rl_schematic`: file-only RL `.asc` generation from explicit parameters.
+- `create_rlc_schematic`: file-only underdamped series RLC `.asc` generation from explicit parameters.
 - `run_simulation`: run LTspice batch mode on an existing `.asc`, `.cir`, or `.net`.
 - `parse_log`: parse an existing LTspice `.log`.
 - `create_netlist`: create `.cir` files from explicit SPICE lines or the simple built-in RC netlist template.
@@ -87,7 +114,8 @@ reports/rl_step_response_report.md
 ## Boundaries
 
 - Do not claim arbitrary circuit synthesis.
-- Do not claim Buck, RLC, op-amp, transistor, or PCB/KiCad support yet.
+- Do not claim Buck, op-amp, transistor, or PCB/KiCad support yet.
+- Treat RLC support as the constrained underdamped series template only; do not claim arbitrary second-order topology synthesis.
 - Treat unsupported circuits as explicit-netlist tasks until a verified `.asc` template and tests exist.
 - Do not overwrite existing circuit files unless the user asks or `overwrite=true` is explicit and safe.
 - GUI opening is macOS-only; batch simulation can use an explicit executable path when available.
@@ -100,7 +128,7 @@ When reporting results, include:
 - generated `.asc` path;
 - LTspice simulation status;
 - parsed `.meas` values;
-- theory comparison for tau and 1 tau/5 tau response;
+- theory comparison for first-order tau or second-order damping/peak response;
 - validation status and max error;
 - report path;
 - any warnings/errors or limitations.
