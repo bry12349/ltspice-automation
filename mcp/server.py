@@ -685,6 +685,10 @@ def _simulation_status(simulation: Optional[Dict[str, Any]], log: Optional[Dict[
     return {"ok": True, "reason": "simulation_passed"}
 
 
+def _default_report_path(schematic_path: Path) -> Path:
+    return schematic_path.with_name(f"{schematic_path.stem}_report.md")
+
+
 def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, Any]:
     description = str(args.get("description") or "").strip()
     if not description:
@@ -762,15 +766,15 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
         result["simulation_status"] = _simulation_status(result["simulation"], result["log"])
         if circuit_type == "rc_lowpass":
             result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 2.0))
-            report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rc_lowpass_report.md")
+            report_path = _expand_path(args.get("report_path")) or _default_report_path(path)
             result["report"] = reporting.generate_rc_lowpass_report(result, report_path)
         elif circuit_type == "rl_step_response":
             result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 2.0))
-            report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rl_step_response_report.md")
+            report_path = _expand_path(args.get("report_path")) or _default_report_path(path)
             result["report"] = reporting.generate_rl_step_response_report(result, report_path)
         elif circuit_type == "rlc_series_step":
             result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 3.0))
-            report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rlc_series_report.md")
+            report_path = _expand_path(args.get("report_path")) or _default_report_path(path)
             result["report"] = reporting.generate_rlc_series_report(result, report_path)
     if args.get("open", True):
         result["opened"] = tool_open_schematic({"path": str(path), "ltspice_path": args.get("ltspice_path")})
