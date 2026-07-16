@@ -26,6 +26,7 @@ Use this skill for LTspice workflows involving visible `.asc` schematics, SPICE 
 5. Check `simulation_status.ok`, `.log` warnings/errors, and parsed measurements before explaining results.
 6. Check `validation.status` before calling the result acceptable.
 7. Use the generated Markdown report when summarizing final values.
+8. Treat `run_simulation.ok=false` as a failed run even if older artifacts exist in the destination directory.
 
 ## RC Low-Pass Requests
 
@@ -105,7 +106,10 @@ Default report: beside the generated schematic as `<schematic-stem>_report.md`; 
 - Do not claim Buck, op-amp, transistor, or PCB/KiCad support yet.
 - Treat RLC support as the constrained underdamped series template only; do not claim arbitrary second-order topology synthesis.
 - Natural-language templates support only DC/step transient requests; route AC, frequency-response, and sine requests to explicit netlists until a verified analysis workflow exists.
+- Natural-language DC/default sources are normalized to zero-to-Vin pulses for the supported step-response templates.
+- Parseable R/L/C values must be positive; unparseable LTspice expressions are left for LTspice to evaluate.
 - Reject parseable RLC values where `zeta >= 1`; critical and overdamped RLC behavior is not supported yet.
+- LTspice batch runs transparently stage whitespace-containing paths and copy newly generated artifacts back to the requested directory.
 - Treat unsupported circuits as explicit-netlist tasks until a verified `.asc` template and tests exist.
 - Do not overwrite existing circuit files unless the user asks or `overwrite=true` is explicit and safe.
 - GUI opening is macOS-only; batch simulation can use an explicit executable path when available.

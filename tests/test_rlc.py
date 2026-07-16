@@ -9,6 +9,29 @@ from mcp import validation
 
 
 class RlcTemplateTests(unittest.TestCase):
+    def test_description_does_not_parse_the_input_voltage_as_capacitance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = server.tool_create_schematic_from_description(
+                {
+                    "description": "Generate a basic 5V RLC with R=10, L=10mH, C=10uF",
+                    "output_dir": tmp,
+                    "simulate": False,
+                    "open": False,
+                }
+            )
+
+        self.assertEqual(result["component_values"]["R1"], "10")
+        self.assertEqual(result["component_values"]["L1"], "10m")
+        self.assertEqual(result["component_values"]["C1"], "10u")
+        self.assertTrue(result["component_values"]["V1"].startswith("PULSE(0 5 "))
+
+    def test_create_rlc_schematic_rejects_negative_inductance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "L must be positive"):
+                server.tool_create_rlc_schematic({"output_dir": tmp, "inductance": "-10m"})
+
+            self.assertEqual(list(Path(tmp).glob("*.asc")), [])
+
     def test_rlc_default_report_is_saved_next_to_schematic(self):
         with tempfile.TemporaryDirectory() as tmp:
             log_path = Path(tmp) / "rlc-default.log"

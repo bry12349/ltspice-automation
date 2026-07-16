@@ -1,5 +1,47 @@
 # LTspice Automation Test Report
 
+## v0.5.1 Verification Update
+
+Date: 2026-07-16
+
+Scope: whitespace-safe LTspice execution, fresh-output enforcement, natural-language source and parameter parsing, component validation, log severity, and timeout validation.
+
+### Results
+
+- Unit tests: 36 tests passed.
+- Python compilation: passed.
+- RC, RL, and RLC real LTspice smoke tests: passed.
+- RLC real LTspice smoke in `/tmp/ltspice smoke v051 final`: passed with `staged_for_whitespace=true`.
+- Whitespace-path RLC validation: PASS; 5V input preserved; no log errors.
+- Plugin manifest validation and Skill validation: passed.
+- Whitespace check: passed.
+
+### New Regression Coverage
+
+- A stale valid log cannot turn a failed current run into simulation or validation PASS.
+- Whitespace-containing input paths are staged without whitespace and new artifacts are copied back.
+- `run_simulation` returns explicit `ok`, `reason`, and `staged_for_whitespace` fields.
+- Natural-language requests without a step keyword use a zero-to-Vin pulse.
+- Explicit unit-labeled voltage values such as `5V` are inferred without requiring the word `step`.
+- Short R/L/C aliases do not match letters embedded in `RLC`.
+- Parseable zero or negative component values fail before schematic creation.
+- Benign lines such as `No errors found` and `No warnings emitted` are not classified as failures.
+- Non-positive simulation timeouts are rejected.
+
+### Commands Run
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m py_compile mcp/server.py mcp/reporting.py mcp/validation.py scripts/*.py tests/*.py
+python3 scripts/smoke_test.py
+python3 scripts/rl_smoke_test.py
+python3 scripts/rlc_smoke_test.py
+# Equivalent RLC MCP workflow with output_dir="/tmp/ltspice smoke v051 final"
+python3 /Users/a0000/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py .
+python3 /Users/a0000/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/ltspice-automation
+git diff --check
+```
+
 ## v0.5.0 Verification Update
 
 Date: 2026-07-16

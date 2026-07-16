@@ -10,12 +10,15 @@ The stable workflows are intentionally narrow: RC low-pass step response, RL ser
 - Adds LTspice `.tran` and `.meas` directives automatically.
 - Opens generated schematics in the LTspice desktop app on macOS.
 - Runs LTspice batch simulation with `-b`.
+- Transparently stages simulations when LTspice input or working paths contain whitespace, then copies fresh artifacts back beside the original schematic.
 - Parses `.log` files for warnings, errors, and `.meas` values.
 - Filters common LTspice log metadata so reports focus on actual measurements.
 - Computes RC measurement points from `R*C` for non-default component values.
 - Scales the `tau_cross` measurement target with the input step voltage.
 - Returns a structured `simulation_status` summary while preserving raw simulation and log details.
 - Validates RC/RL/RLC measurements against circuit theory with a configurable tolerance.
+- Rejects parseable zero or negative R/L/C values before writing a schematic.
+- Converts natural-language DC/default sources into zero-to-Vin step pulses so transient theory remains meaningful.
 - Generates Markdown simulation reports for RC, RL, and RLC workflows with PASS/FAIL summaries.
 - Includes smoke and unit tests for the current RC, RL, and RLC workflows.
 
@@ -384,6 +387,7 @@ For default `R=1k`, `C=1uF`, names remain `vout_at_1ms` and `vout_at_5ms`. For o
 
 - Stable visual schematic generation is limited to RC low-pass, RL series step response, and underdamped series RLC step response.
 - Natural-language parsing is constrained and regex-based.
+- Short parameter names (`R`, `L`, and `C`) require token boundaries, preventing values such as `5V RLC` from being misread as component values.
 - Natural-language templates are transient workflows: AC/frequency-response and sine requests are rejected; use `create_netlist` for custom analyses.
 - The RLC template requires a parseable underdamped configuration (`zeta < 1`); critical and overdamped requests are rejected before a schematic is written.
 - GUI opening is macOS-specific.
@@ -402,6 +406,7 @@ For default `R=1k`, `C=1uF`, names remain `vout_at_1ms` and `vout_at_5ms`. For o
 - Phase 3.5: add validation summaries, fixture parser tests, and report reproducibility. Completed in v0.3.0.
 - Phase 4: add RLC second-order response. Completed for one underdamped series RLC template in v0.4.0.
 - Phase 4.5: reliability guardrails for source modes, RLC damping, report locations, and custom LTspice paths. Completed in v0.5.0.
+- Phase 4.6: whitespace-safe simulation, fresh-output checks, positive component validation, and natural-language parser fixes. Completed in v0.5.1.
 - Phase 5: add Buck converter simulation workflow.
 - Phase 6: add parameter sweep support.
 - Phase 7: create portfolio-ready artifacts.

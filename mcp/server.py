@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -156,6 +157,8 @@ def tool_create_rc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     resistance = str(args.get("resistance") or "1k")
     capacitance = str(args.get("capacitance") or "1u")
     source = str(args.get("source") or "PULSE(0 1 0 1u 1u 10m 20m)")
+    _require_positive_component("R", resistance)
+    _require_positive_component("C", capacitance)
     analysis = str(args.get("analysis") or _default_rc_analysis(resistance, capacitance))
     measures = args.get("measures") or _default_rc_measures(resistance, capacitance, source)
 
@@ -206,6 +209,8 @@ def tool_create_rl_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     resistance = str(args.get("resistance") or "10")
     inductance = str(args.get("inductance") or "10m")
     source = str(args.get("source") or "PULSE(0 5 0 1u 1u 10m 20m)")
+    _require_positive_component("R", resistance)
+    _require_positive_component("L", inductance)
     analysis = str(args.get("analysis") or _default_rl_analysis(resistance, inductance))
     measures = args.get("measures") or _default_rl_measures(resistance, inductance, source)
     lines = _rl_step_asc(title, resistance, inductance, source, analysis, measures)
@@ -233,6 +238,9 @@ def tool_create_rlc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     inductance = str(args.get("inductance") or "10m")
     capacitance = str(args.get("capacitance") or "10u")
     source = str(args.get("source") or "PULSE(0 5 0 1u 1u 100m 200m)")
+    _require_positive_component("R", resistance)
+    _require_positive_component("L", inductance)
+    _require_positive_component("C", capacitance)
     _require_underdamped_rlc(resistance, inductance, capacitance, source)
     analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
     measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)
@@ -249,7 +257,13 @@ def tool_create_rlc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _parse_value(description: str, names: List[str], default: str) -> str:
-    joined = "|".join(re.escape(name) for name in names)
+    name_patterns = []
+    for name in names:
+        escaped = re.escape(name)
+        if len(name) == 1 and name.isascii() and name.isalpha():
+            escaped = rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])"
+        name_patterns.append(escaped)
+    joined = "|".join(name_patterns)
     patterns = [
         rf"(?:{joined})\s*(?:=|为|是|:)?\s*([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:ohm|Ω|欧|F|法|V|伏)?)",
         rf"([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:ohm|Ω|欧|F|法|V|伏)?)\s*(?:的)?(?:{joined})",
@@ -313,6 +327,12 @@ def _spice_number(value: str) -> Optional[float]:
     if multiplier is None:
         return None
     return number * multiplier
+
+
+def _require_positive_component(name: str, value: str) -> None:
+    parsed = _spice_number(_normalize_spice_value(value))
+    if parsed is not None and parsed <= 0:
+        raise RuntimeError(f"{name} must be positive; received {value}.")
 
 
 def _format_spice_decimal(value: float) -> str:
@@ -502,8 +522,14 @@ def _source_from_description(description: str, explicit: Optional[str] = None) -
     text = description.lower()
     amplitude = _parse_value(description, ["幅度", "输入", "电源", "source", "vin", "v1"], "1")
     if amplitude == "1":
-        step_amplitude = re.search(r"([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:V|v|伏)?)\s*(?:step|阶跃|pulse|脉冲)", description)
-        if step_amplitude:
+        explicit_voltage = re.search(r"([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:V|v|伏))", description)
+        step_amplitude = re.search(
+            r"([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:V|v|伏)?)\s*(?:step|阶跃|pulse|脉冲)",
+            description,
+        )
+        if explicit_voltage:
+            amplitude = _normalize_spice_value(explicit_voltage.group(1))
+        elif step_amplitude:
             amplitude = _normalize_spice_value(step_amplitude.group(1))
     if any(token in text for token in ["阶跃", "step", "pulse", "脉冲"]):
         return f"PULSE(0 {amplitude} 0 1u 1u 10m 20m)"
@@ -676,6 +702,8 @@ def _write_schematic(output_dir: Path, filename: str, lines: List[str], overwrit
 def _simulation_status(simulation: Optional[Dict[str, Any]], log: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if simulation is None:
         return {"ok": None, "reason": "simulation_not_requested"}
+    if simulation.get("ok") is False:
+        return {"ok": False, "reason": simulation.get("reason") or "simulation_failed"}
     if simulation.get("returncode") != 0:
         return {"ok": False, "reason": "ltspice_returncode_nonzero"}
     if log is None:
@@ -706,12 +734,16 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
             "Natural-language generation supports only DC or step transient requests; "
             "use create_netlist for AC or sine analysis."
         )
+    if source.upper().startswith("DC"):
+        source = _long_step_source(source)
 
     if circuit_type in ["rc_lowpass", "rc_highpass"]:
         if circuit_type != "rc_lowpass":
             raise RuntimeError("The natural-language visual schematic generator currently supports rc_lowpass, rl_step_response, and rlc_series_step. Use create_netlist for other circuits until their .asc templates are verified.")
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "1k"))
         capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "1u"))
+        _require_positive_component("R", resistance)
+        _require_positive_component("C", capacitance)
         analysis = str(args.get("analysis") or _default_rc_analysis(resistance, capacitance))
         measures = args.get("measures") or _default_rc_measures(resistance, capacitance, source)
         lines = _rc_lowpass_asc(title, resistance, capacitance, source, analysis, measures)
@@ -719,16 +751,19 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
     elif circuit_type == "rl_step_response":
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "10"))
         inductance = str(args.get("inductance") or _parse_value(description, ["电感", "l", "inductor", "inductance"], "10m"))
+        _require_positive_component("R", resistance)
+        _require_positive_component("L", inductance)
         analysis = str(args.get("analysis") or _default_rl_analysis(resistance, inductance))
         measures = args.get("measures") or _default_rl_measures(resistance, inductance, source)
         lines = _rl_step_asc(title, resistance, inductance, source, analysis, measures)
         component_values = {"R1": resistance, "L1": inductance, "V1": source}
     elif circuit_type == "rlc_series_step":
-        if not args.get("source"):
-            source = _long_step_source(source)
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "10"))
         inductance = str(args.get("inductance") or _parse_value(description, ["电感", "l", "inductor", "inductance"], "10m"))
         capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "10u"))
+        _require_positive_component("R", resistance)
+        _require_positive_component("L", inductance)
+        _require_positive_component("C", capacitance)
         _require_underdamped_rlc(resistance, inductance, capacitance, source)
         analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
         measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)
@@ -815,6 +850,32 @@ def tool_open_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _simulation_outputs(input_path: Path) -> Dict[str, Path]:
+    return {
+        "log": input_path.with_suffix(".log"),
+        "raw": input_path.with_suffix(".raw"),
+        "op_raw": input_path.with_suffix(".op.raw"),
+        "net": input_path.with_suffix(".net"),
+        "db": input_path.with_suffix(".db"),
+    }
+
+
+def _remove_simulation_outputs(input_path: Path, outputs: Dict[str, Path]) -> None:
+    for path in outputs.values():
+        if path != input_path and path.exists():
+            path.unlink()
+
+
+def _run_ltspice(exe: Path, input_path: Path, cwd: Path, timeout: int) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [str(exe), "-b", str(input_path)],
+        cwd=str(cwd),
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+    )
+
+
 def tool_run_simulation(args: Dict[str, Any]) -> Dict[str, Any]:
     exe = _ltspice_executable(args.get("ltspice_path"))
     if not exe:
@@ -823,20 +884,45 @@ def tool_run_simulation(args: Dict[str, Any]) -> Dict[str, Any]:
     if not input_path or not input_path.exists():
         raise RuntimeError("input_path must point to an existing .cir, .net, or .asc file.")
     cwd = _expand_path(args.get("cwd")) or input_path.parent
-    timeout = int(args.get("timeout_seconds") or 120)
-    cmd = [str(exe), "-b", str(input_path)]
-    proc = subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True, timeout=timeout)
-    expected = {
-        "log": input_path.with_suffix(".log"),
-        "raw": input_path.with_suffix(".raw"),
-        "op_raw": input_path.with_suffix(".op.raw"),
-    }
+    timeout_value = args.get("timeout_seconds")
+    timeout = 120 if timeout_value is None else int(timeout_value)
+    if timeout <= 0:
+        raise RuntimeError("timeout_seconds must be positive.")
+    expected = _simulation_outputs(input_path)
+    _remove_simulation_outputs(input_path, expected)
+    staged_for_whitespace = bool(re.search(r"\s", str(input_path)) or re.search(r"\s", str(cwd)))
+
+    if staged_for_whitespace:
+        with tempfile.TemporaryDirectory(prefix="ltspice-automation-") as tmp:
+            staged_input = Path(tmp) / f"simulation{input_path.suffix}"
+            shutil.copy2(input_path, staged_input)
+            staged_outputs = _simulation_outputs(staged_input)
+            proc = _run_ltspice(exe, staged_input, staged_input.parent, timeout)
+            cmd = [str(exe), "-b", str(staged_input)]
+            for name, staged_path in staged_outputs.items():
+                if staged_path != staged_input and staged_path.exists():
+                    shutil.copy2(staged_path, expected[name])
+    else:
+        proc = _run_ltspice(exe, input_path, cwd, timeout)
+        cmd = [str(exe), "-b", str(input_path)]
+
+    log_exists = expected["log"].exists()
+    if proc.returncode != 0:
+        reason = "ltspice_returncode_nonzero"
+    elif not log_exists:
+        reason = "log_missing"
+    else:
+        reason = "simulation_passed"
+    ok = proc.returncode == 0 and log_exists
     return {
         "command": cmd,
         "cwd": str(cwd),
         "returncode": proc.returncode,
         "stdout": proc.stdout[-4000:],
         "stderr": proc.stderr[-4000:],
+        "ok": ok,
+        "reason": reason,
+        "staged_for_whitespace": staged_for_whitespace,
         "expected_outputs": {name: str(path) for name, path in expected.items() if path.exists()},
     }
 
@@ -876,9 +962,11 @@ def tool_parse_log(args: Dict[str, Any]) -> Dict[str, Any]:
     if not path or not path.exists():
         raise RuntimeError("log_path must point to an existing LTspice .log file.")
     text = path.read_text(errors="replace")
-    warnings = [line.strip() for line in text.splitlines() if "warning" in line.lower()]
-    error_markers = ["error", "failed", "expected", "unknown", "can't", "cannot", "not found"]
-    errors = [line.strip() for line in text.splitlines() if any(marker in line.lower() for marker in error_markers)]
+    lines = text.splitlines()
+    warning_prefixes = ("warning",)
+    error_prefixes = ("error", "fatal error", "failed to", "can't", "cannot")
+    warnings = [line.strip() for line in lines if line.strip().lower().startswith(warning_prefixes)]
+    errors = [line.strip() for line in lines if line.strip().lower().startswith(error_prefixes)]
     return {
         "path": str(path),
         "line_count": len(text.splitlines()),
@@ -1044,7 +1132,7 @@ def handle_request(request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return _jsonrpc_result(message_id, {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "ltspice-automation", "version": "0.5.0"},
+                "serverInfo": {"name": "ltspice-automation", "version": "0.5.1"},
             })
         if method == "notifications/initialized":
             return None

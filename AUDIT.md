@@ -1,6 +1,6 @@
 # LTspice Automation Audit
 
-## v0.5.0 Status Update
+## v0.5.1 Status Update
 
 Date: 2026-07-16
 
@@ -12,6 +12,8 @@ Current verified boundary:
 - visible `.asc` generation, LTspice batch simulation, `.log` parsing, theory validation, and Markdown reporting;
 - natural-language templates limited to DC/step transient work; AC, sine, and frequency-response requests require explicit netlists;
 - RLC values with `zeta >= 1` are rejected before file creation;
+- LTspice paths containing whitespace are staged transparently, and only fresh output files can satisfy simulation success;
+- parseable R/L/C values must be positive, while natural-language DC/default sources are normalized to step pulses;
 - default generated reports are sibling files of their schematics, leaving committed example reports unchanged.
 
 Outstanding scope remains intentionally constrained: arbitrary circuit synthesis, AC workflow generation, critical/overdamped RLC, Buck converters, parameter sweeps, and PCB/KiCad are not supported.
