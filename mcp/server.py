@@ -522,8 +522,14 @@ def _source_from_description(description: str, explicit: Optional[str] = None) -
     text = description.lower()
     amplitude = _parse_value(description, ["幅度", "输入", "电源", "source", "vin", "v1"], "1")
     if amplitude == "1":
-        step_amplitude = re.search(r"([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:V|v|伏)?)\s*(?:step|阶跃|pulse|脉冲)", description)
-        if step_amplitude:
+        explicit_voltage = re.search(r"([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:V|v|伏))", description)
+        step_amplitude = re.search(
+            r"([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:V|v|伏)?)\s*(?:step|阶跃|pulse|脉冲)",
+            description,
+        )
+        if explicit_voltage:
+            amplitude = _normalize_spice_value(explicit_voltage.group(1))
+        elif step_amplitude:
             amplitude = _normalize_spice_value(step_amplitude.group(1))
     if any(token in text for token in ["阶跃", "step", "pulse", "脉冲"]):
         return f"PULSE(0 {amplitude} 0 1u 1u 10m 20m)"

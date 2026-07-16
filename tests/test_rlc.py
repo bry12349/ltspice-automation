@@ -23,6 +23,7 @@ class RlcTemplateTests(unittest.TestCase):
         self.assertEqual(result["component_values"]["R1"], "10")
         self.assertEqual(result["component_values"]["L1"], "10m")
         self.assertEqual(result["component_values"]["C1"], "10u")
+        self.assertTrue(result["component_values"]["V1"].startswith("PULSE(0 5 "))
 
     def test_create_rlc_schematic_rejects_negative_inductance(self):
         with tempfile.TemporaryDirectory() as tmp:
