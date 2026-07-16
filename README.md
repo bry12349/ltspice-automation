@@ -291,23 +291,7 @@ For `Vin=5V`, `R=10`, `L=10mH`, and `C=10uF`:
 
 ## Markdown Reports
 
-After an RC low-pass simulation, the workflow writes:
-
-```text
-reports/rc_lowpass_report.md
-```
-
-After an RL step-response simulation, the workflow writes:
-
-```text
-reports/rl_step_response_report.md
-```
-
-After an RLC series step-response simulation, the workflow writes:
-
-```text
-reports/rlc_series_report.md
-```
+After a simulation, the workflow writes its default report beside the generated schematic. For example, `work/demo/rc-lowpass.asc` produces `work/demo/rc-lowpass_report.md`. Pass `report_path` to choose a different location. The committed files under `reports/` are examples and are not overwritten by default.
 
 The report includes:
 
@@ -400,6 +384,8 @@ For default `R=1k`, `C=1uF`, names remain `vout_at_1ms` and `vout_at_5ms`. For o
 
 - Stable visual schematic generation is limited to RC low-pass, RL series step response, and underdamped series RLC step response.
 - Natural-language parsing is constrained and regex-based.
+- Natural-language templates are transient workflows: AC/frequency-response and sine requests are rejected; use `create_netlist` for custom analyses.
+- The RLC template requires a parseable underdamped configuration (`zeta < 1`); critical and overdamped requests are rejected before a schematic is written.
 - GUI opening is macOS-specific.
 - Log parsing is useful but still simple; severity classification can be improved.
 - Validation currently targets the stable RC/RL first-order workflows and the underdamped series RLC workflow.
@@ -415,6 +401,7 @@ For default `R=1k`, `C=1uF`, names remain `vout_at_1ms` and `vout_at_5ms`. For o
 - Phase 3: add RL step response. Completed for a series RL template.
 - Phase 3.5: add validation summaries, fixture parser tests, and report reproducibility. Completed in v0.3.0.
 - Phase 4: add RLC second-order response. Completed for one underdamped series RLC template in v0.4.0.
+- Phase 4.5: reliability guardrails for source modes, RLC damping, report locations, and custom LTspice paths. Completed in v0.5.0.
 - Phase 5: add Buck converter simulation workflow.
 - Phase 6: add parameter sweep support.
 - Phase 7: create portfolio-ready artifacts.

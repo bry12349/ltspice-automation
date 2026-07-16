@@ -1,5 +1,51 @@
 # LTspice Automation Test Report
 
+## v0.5.0 Verification Update
+
+Date: 2026-07-16
+
+Scope: reliability guardrails for natural-language transient inputs, explicit LTspice paths, underdamped RLC validation, and non-destructive default report locations.
+
+### Commands Run
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m py_compile mcp/server.py mcp/reporting.py mcp/validation.py scripts/smoke_test.py scripts/rl_smoke_test.py scripts/rlc_smoke_test.py tests/test_server.py tests/test_reporting.py tests/test_rl.py tests/test_rlc.py tests/test_validation.py
+python3 scripts/smoke_test.py
+python3 scripts/rl_smoke_test.py
+python3 scripts/rlc_smoke_test.py
+python3 /Users/a0000/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py .
+python3 /Users/a0000/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/ltspice-automation
+git diff --check
+```
+
+### Results
+
+- Unit tests: 27 tests passed.
+- Python compilation: passed.
+- RC, RL, and RLC real LTspice smoke tests: passed.
+- Plugin manifest validation and Skill validation: passed.
+- Whitespace check: passed.
+
+### New Successful Coverage
+
+- AC/frequency-response natural-language requests fail before a transient schematic is written.
+- Explicit `ltspice_path` reaches batch simulation.
+- Direct and natural-language RLC requests with parseable `zeta >= 1` fail before file creation.
+- RC, RL, and RLC implicit reports are written beside their generated schematics rather than overwriting the committed examples.
+
+### Smoke Measurements
+
+```text
+RC:  vout_at_1ms = 0.631937031823 V
+RL:  i_at_1tau = 0.315955860088 A
+RLC: peak_voltage = 8.02340507507 V
+```
+
+### Remaining Gaps
+
+- Natural-language AC/sine workflows, critical/overdamped RLC, arbitrary topologies, waveform export, Buck converter, and parameter sweeps remain out of scope.
+
 ## v0.4.0 Verification Update
 
 Date: 2026-07-07

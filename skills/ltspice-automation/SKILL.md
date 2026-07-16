@@ -44,11 +44,7 @@ tau = R * C
 Vout(t) = Vin * (1 - exp(-t / tau))
 ```
 
-Default report:
-
-```text
-reports/rc_lowpass_report.md
-```
+Default report: beside the generated schematic as `<schematic-stem>_report.md`; callers can override it with `report_path`.
 
 ## RL Step-Response Requests
 
@@ -68,11 +64,7 @@ I_final = Vin / R
 i(t) = I_final * (1 - exp(-t / tau))
 ```
 
-Default report:
-
-```text
-reports/rl_step_response_report.md
-```
+Default report: beside the generated schematic as `<schematic-stem>_report.md`; callers can override it with `report_path`.
 
 ## RLC Series Step-Response Requests
 
@@ -93,11 +85,7 @@ zeta = R / 2 * sqrt(C / L)
 omega_d = omega_n * sqrt(1 - zeta^2)
 ```
 
-Default report:
-
-```text
-reports/rlc_series_report.md
-```
+Default report: beside the generated schematic as `<schematic-stem>_report.md`; callers can override it with `report_path`.
 
 ## Tool Selection
 
@@ -116,6 +104,8 @@ reports/rlc_series_report.md
 - Do not claim arbitrary circuit synthesis.
 - Do not claim Buck, op-amp, transistor, or PCB/KiCad support yet.
 - Treat RLC support as the constrained underdamped series template only; do not claim arbitrary second-order topology synthesis.
+- Natural-language templates support only DC/step transient requests; route AC, frequency-response, and sine requests to explicit netlists until a verified analysis workflow exists.
+- Reject parseable RLC values where `zeta >= 1`; critical and overdamped RLC behavior is not supported yet.
 - Treat unsupported circuits as explicit-netlist tasks until a verified `.asc` template and tests exist.
 - Do not overwrite existing circuit files unless the user asks or `overwrite=true` is explicit and safe.
 - GUI opening is macOS-only; batch simulation can use an explicit executable path when available.
