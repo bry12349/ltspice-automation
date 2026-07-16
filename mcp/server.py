@@ -257,7 +257,13 @@ def tool_create_rlc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _parse_value(description: str, names: List[str], default: str) -> str:
-    joined = "|".join(re.escape(name) for name in names)
+    name_patterns = []
+    for name in names:
+        escaped = re.escape(name)
+        if len(name) == 1 and name.isascii() and name.isalpha():
+            escaped = rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])"
+        name_patterns.append(escaped)
+    joined = "|".join(name_patterns)
     patterns = [
         rf"(?:{joined})\s*(?:=|为|是|:)?\s*([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:ohm|Ω|欧|F|法|V|伏)?)",
         rf"([0-9.]+\s*(?:meg|MEG|[kKmMuUnNpPfF]?)(?:ohm|Ω|欧|F|法|V|伏)?)\s*(?:的)?(?:{joined})",
