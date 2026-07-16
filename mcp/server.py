@@ -687,6 +687,11 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
     source = _source_from_description(description, args.get("source"))
     if not source.upper().startswith(("PULSE", "SINE", "SIN", "AC", "DC")):
         source = f"DC {source}"
+    if source.upper().startswith(("SINE", "SIN", "AC")):
+        raise RuntimeError(
+            "Natural-language generation supports only DC or step transient requests; "
+            "use create_netlist for AC or sine analysis."
+        )
 
     if circuit_type in ["rc_lowpass", "rc_highpass"]:
         if circuit_type != "rc_lowpass":
@@ -733,7 +738,13 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
         "report": None,
     }
     if args.get("simulate", True):
-        result["simulation"] = tool_run_simulation({"input_path": str(path), "timeout_seconds": args.get("timeout_seconds", 60)})
+        result["simulation"] = tool_run_simulation(
+            {
+                "input_path": str(path),
+                "timeout_seconds": args.get("timeout_seconds", 60),
+                "ltspice_path": args.get("ltspice_path"),
+            }
+        )
         log_path = path.with_suffix(".log")
         if log_path.exists():
             result["log"] = tool_parse_log({"log_path": str(log_path)})

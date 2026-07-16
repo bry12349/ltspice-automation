@@ -17,6 +17,20 @@ class ValueParsingTests(unittest.TestCase):
 
 
 class RcMeasurementTests(unittest.TestCase):
+    def test_description_rejects_ac_source_before_writing_a_schematic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "DC or step transient"):
+                server.tool_create_schematic_from_description(
+                    {
+                        "description": "Generate an AC RC low-pass frequency response",
+                        "output_dir": tmp,
+                        "open": False,
+                        "simulate": False,
+                    }
+                )
+
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
     def test_description_schematic_uses_parameterized_tau_measurements(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = server.tool_create_schematic_from_description(
@@ -60,6 +74,23 @@ class RcMeasurementTests(unittest.TestCase):
 
 
 class SimulationStatusTests(unittest.TestCase):
+    def test_description_forwards_ltspice_path_to_simulation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(server, "tool_run_simulation", return_value={"returncode": 1}) as run:
+                server.tool_create_schematic_from_description(
+                    {
+                        "description": "Generate a 1V step RC low-pass circuit",
+                        "output_dir": tmp,
+                        "filename": "forward-path",
+                        "overwrite": True,
+                        "open": False,
+                        "simulate": True,
+                        "ltspice_path": "/custom/LTspice.app",
+                    }
+                )
+
+        self.assertEqual(run.call_args.args[0]["ltspice_path"], "/custom/LTspice.app")
+
     def test_simulation_status_reports_success_from_returncode_and_clean_log(self):
         status = server._simulation_status(
             {"returncode": 0},
