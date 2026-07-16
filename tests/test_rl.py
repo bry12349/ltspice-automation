@@ -8,6 +8,13 @@ from mcp import server
 
 
 class RlTemplateTests(unittest.TestCase):
+    def test_create_rl_schematic_rejects_negative_inductance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "L must be positive"):
+                server.tool_create_rl_schematic({"output_dir": tmp, "inductance": "-10m"})
+
+            self.assertEqual(list(Path(tmp).glob("*.asc")), [])
+
     def test_rl_default_report_is_saved_next_to_schematic(self):
         with tempfile.TemporaryDirectory() as tmp:
             log_path = Path(tmp) / "rl-default.log"

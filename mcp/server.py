@@ -157,6 +157,8 @@ def tool_create_rc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     resistance = str(args.get("resistance") or "1k")
     capacitance = str(args.get("capacitance") or "1u")
     source = str(args.get("source") or "PULSE(0 1 0 1u 1u 10m 20m)")
+    _require_positive_component("R", resistance)
+    _require_positive_component("C", capacitance)
     analysis = str(args.get("analysis") or _default_rc_analysis(resistance, capacitance))
     measures = args.get("measures") or _default_rc_measures(resistance, capacitance, source)
 
@@ -207,6 +209,8 @@ def tool_create_rl_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     resistance = str(args.get("resistance") or "10")
     inductance = str(args.get("inductance") or "10m")
     source = str(args.get("source") or "PULSE(0 5 0 1u 1u 10m 20m)")
+    _require_positive_component("R", resistance)
+    _require_positive_component("L", inductance)
     analysis = str(args.get("analysis") or _default_rl_analysis(resistance, inductance))
     measures = args.get("measures") or _default_rl_measures(resistance, inductance, source)
     lines = _rl_step_asc(title, resistance, inductance, source, analysis, measures)
@@ -234,6 +238,9 @@ def tool_create_rlc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     inductance = str(args.get("inductance") or "10m")
     capacitance = str(args.get("capacitance") or "10u")
     source = str(args.get("source") or "PULSE(0 5 0 1u 1u 100m 200m)")
+    _require_positive_component("R", resistance)
+    _require_positive_component("L", inductance)
+    _require_positive_component("C", capacitance)
     _require_underdamped_rlc(resistance, inductance, capacitance, source)
     analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
     measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)
@@ -314,6 +321,12 @@ def _spice_number(value: str) -> Optional[float]:
     if multiplier is None:
         return None
     return number * multiplier
+
+
+def _require_positive_component(name: str, value: str) -> None:
+    parsed = _spice_number(_normalize_spice_value(value))
+    if parsed is not None and parsed <= 0:
+        raise RuntimeError(f"{name} must be positive; received {value}.")
 
 
 def _format_spice_decimal(value: float) -> str:
@@ -709,12 +722,16 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
             "Natural-language generation supports only DC or step transient requests; "
             "use create_netlist for AC or sine analysis."
         )
+    if source.upper().startswith("DC"):
+        source = _long_step_source(source)
 
     if circuit_type in ["rc_lowpass", "rc_highpass"]:
         if circuit_type != "rc_lowpass":
             raise RuntimeError("The natural-language visual schematic generator currently supports rc_lowpass, rl_step_response, and rlc_series_step. Use create_netlist for other circuits until their .asc templates are verified.")
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "1k"))
         capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "1u"))
+        _require_positive_component("R", resistance)
+        _require_positive_component("C", capacitance)
         analysis = str(args.get("analysis") or _default_rc_analysis(resistance, capacitance))
         measures = args.get("measures") or _default_rc_measures(resistance, capacitance, source)
         lines = _rc_lowpass_asc(title, resistance, capacitance, source, analysis, measures)
@@ -722,16 +739,19 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
     elif circuit_type == "rl_step_response":
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "10"))
         inductance = str(args.get("inductance") or _parse_value(description, ["电感", "l", "inductor", "inductance"], "10m"))
+        _require_positive_component("R", resistance)
+        _require_positive_component("L", inductance)
         analysis = str(args.get("analysis") or _default_rl_analysis(resistance, inductance))
         measures = args.get("measures") or _default_rl_measures(resistance, inductance, source)
         lines = _rl_step_asc(title, resistance, inductance, source, analysis, measures)
         component_values = {"R1": resistance, "L1": inductance, "V1": source}
     elif circuit_type == "rlc_series_step":
-        if not args.get("source"):
-            source = _long_step_source(source)
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "10"))
         inductance = str(args.get("inductance") or _parse_value(description, ["电感", "l", "inductor", "inductance"], "10m"))
         capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "10u"))
+        _require_positive_component("R", resistance)
+        _require_positive_component("L", inductance)
+        _require_positive_component("C", capacitance)
         _require_underdamped_rlc(resistance, inductance, capacitance, source)
         analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
         measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)

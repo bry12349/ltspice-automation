@@ -18,6 +18,26 @@ class ValueParsingTests(unittest.TestCase):
 
 
 class RcMeasurementTests(unittest.TestCase):
+    def test_description_without_step_keyword_uses_a_step_pulse(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = server.tool_create_schematic_from_description(
+                {
+                    "description": "Generate a basic RC low-pass with R=1k and C=1uF",
+                    "output_dir": tmp,
+                    "simulate": False,
+                    "open": False,
+                }
+            )
+
+        self.assertTrue(result["component_values"]["V1"].startswith("PULSE(0 1 "))
+
+    def test_create_rc_schematic_rejects_zero_capacitance(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "C must be positive"):
+                server.tool_create_rc_schematic({"output_dir": tmp, "capacitance": "0"})
+
+            self.assertEqual(list(Path(tmp).glob("*.asc")), [])
+
     def test_description_rejects_ac_source_before_writing_a_schematic(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(RuntimeError, "DC or step transient"):
