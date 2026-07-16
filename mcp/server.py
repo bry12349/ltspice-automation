@@ -233,6 +233,7 @@ def tool_create_rlc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     inductance = str(args.get("inductance") or "10m")
     capacitance = str(args.get("capacitance") or "10u")
     source = str(args.get("source") or "PULSE(0 5 0 1u 1u 100m 200m)")
+    _require_underdamped_rlc(resistance, inductance, capacitance, source)
     analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
     measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)
     lines = _rlc_series_asc(title, resistance, inductance, capacitance, source, analysis, measures)
@@ -433,6 +434,15 @@ def _rlc_parameters(resistance: str, inductance: str, capacitance: str, source: 
         result["omega_d"] = omega_d
         result["peak_time"] = 3.141592653589793 / omega_d
     return result
+
+
+def _require_underdamped_rlc(resistance: str, inductance: str, capacitance: str, source: str) -> None:
+    params = _rlc_parameters(resistance, inductance, capacitance, source)
+    if params and params["zeta"] >= 1:
+        raise RuntimeError(
+            "The RLC series template requires zeta < 1; "
+            f"calculated zeta={params['zeta']:.6g}."
+        )
 
 
 def _default_rlc_analysis(resistance: str, inductance: str, capacitance: str) -> str:
@@ -675,6 +685,10 @@ def _simulation_status(simulation: Optional[Dict[str, Any]], log: Optional[Dict[
     return {"ok": True, "reason": "simulation_passed"}
 
 
+def _default_report_path(schematic_path: Path) -> Path:
+    return schematic_path.with_name(f"{schematic_path.stem}_report.md")
+
+
 def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, Any]:
     description = str(args.get("description") or "").strip()
     if not description:
@@ -687,6 +701,11 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
     source = _source_from_description(description, args.get("source"))
     if not source.upper().startswith(("PULSE", "SINE", "SIN", "AC", "DC")):
         source = f"DC {source}"
+    if source.upper().startswith(("SINE", "SIN", "AC")):
+        raise RuntimeError(
+            "Natural-language generation supports only DC or step transient requests; "
+            "use create_netlist for AC or sine analysis."
+        )
 
     if circuit_type in ["rc_lowpass", "rc_highpass"]:
         if circuit_type != "rc_lowpass":
@@ -710,6 +729,7 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "10"))
         inductance = str(args.get("inductance") or _parse_value(description, ["电感", "l", "inductor", "inductance"], "10m"))
         capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "10u"))
+        _require_underdamped_rlc(resistance, inductance, capacitance, source)
         analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
         measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)
         lines = _rlc_series_asc(title, resistance, inductance, capacitance, source, analysis, measures)
@@ -733,22 +753,28 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
         "report": None,
     }
     if args.get("simulate", True):
-        result["simulation"] = tool_run_simulation({"input_path": str(path), "timeout_seconds": args.get("timeout_seconds", 60)})
+        result["simulation"] = tool_run_simulation(
+            {
+                "input_path": str(path),
+                "timeout_seconds": args.get("timeout_seconds", 60),
+                "ltspice_path": args.get("ltspice_path"),
+            }
+        )
         log_path = path.with_suffix(".log")
         if log_path.exists():
             result["log"] = tool_parse_log({"log_path": str(log_path)})
         result["simulation_status"] = _simulation_status(result["simulation"], result["log"])
         if circuit_type == "rc_lowpass":
             result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 2.0))
-            report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rc_lowpass_report.md")
+            report_path = _expand_path(args.get("report_path")) or _default_report_path(path)
             result["report"] = reporting.generate_rc_lowpass_report(result, report_path)
         elif circuit_type == "rl_step_response":
             result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 2.0))
-            report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rl_step_response_report.md")
+            report_path = _expand_path(args.get("report_path")) or _default_report_path(path)
             result["report"] = reporting.generate_rl_step_response_report(result, report_path)
         elif circuit_type == "rlc_series_step":
             result["validation"] = validation.validate_result(result, float(args.get("tolerance_percent") or 3.0))
-            report_path = _expand_path(args.get("report_path")) or (PLUGIN_ROOT / "reports" / "rlc_series_report.md")
+            report_path = _expand_path(args.get("report_path")) or _default_report_path(path)
             result["report"] = reporting.generate_rlc_series_report(result, report_path)
     if args.get("open", True):
         result["opened"] = tool_open_schematic({"path": str(path), "ltspice_path": args.get("ltspice_path")})
@@ -1018,7 +1044,7 @@ def handle_request(request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return _jsonrpc_result(message_id, {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "ltspice-automation", "version": "0.4.0"},
+                "serverInfo": {"name": "ltspice-automation", "version": "0.5.0"},
             })
         if method == "notifications/initialized":
             return None

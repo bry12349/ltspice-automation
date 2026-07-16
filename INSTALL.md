@@ -56,7 +56,7 @@ reports/rl_step_response_report.md
 reports/rlc_series_report.md
 ```
 
-In v0.4.0, these reports include validation PASS/FAIL status, max error, tolerance, and reproduction details.
+In v0.5.0, reports include validation PASS/FAIL status, max error, tolerance, and reproduction details. By default a report is written beside its generated schematic as `<schematic-stem>_report.md`; pass `report_path` to override it.
 
 ## Available Workflows
 

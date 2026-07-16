@@ -210,6 +210,18 @@ The implemented template is intentionally narrow:
 - no parallel RLC;
 - no overdamped or critically damped validation yet.
 
+## Phase 4.5: Reliability Guardrails
+
+Status: completed in v0.5.0.
+
+### Delivered
+
+- Forwarded explicit `ltspice_path` from natural-language generation to LTspice batch simulation.
+- Rejected AC, frequency-response, and sine requests before they enter a transient step-response template.
+- Rejected parseable critical and overdamped RLC values before writing a schematic.
+- Moved default generated reports beside their source schematics, preserving committed example reports.
+- Added regression coverage for each guardrail.
+
 ## Phase 5: Add Buck Converter
 
 ### Goal

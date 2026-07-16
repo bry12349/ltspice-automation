@@ -9,6 +9,64 @@ from mcp import validation
 
 
 class RlcTemplateTests(unittest.TestCase):
+    def test_rlc_default_report_is_saved_next_to_schematic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "rlc-default.log"
+            log_path.write_text("placeholder\n", encoding="utf-8")
+            fake_log = {
+                "warnings": [],
+                "errors": [],
+                "measurements": {
+                    "vout_at_peak": "V(out) =8.023 at 0.001006115",
+                    "peak_voltage": "MAX(v(out))=8.023 FROM 0 TO 0.016",
+                    "vout_at_settle": "V(out) =4.912 at 0.008",
+                },
+            }
+            with mock.patch.object(server, "tool_run_simulation", return_value={"returncode": 0}), mock.patch.object(
+                server, "tool_parse_log", return_value=fake_log
+            ), mock.patch.object(reporting, "generate_rlc_series_report", return_value={"path": "ignored"}) as generate:
+                server.tool_create_schematic_from_description(
+                    {
+                        "description": "Generate a 5V step RLC circuit with R=10, L=10mH, and C=10uF",
+                        "output_dir": tmp,
+                        "filename": "rlc-default",
+                        "overwrite": True,
+                        "open": False,
+                        "simulate": True,
+                    }
+                )
+
+        self.assertEqual(generate.call_args.args[1], Path(tmp).resolve() / "rlc-default_report.md")
+
+    def test_create_rlc_schematic_rejects_non_underdamped_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "zeta < 1"):
+                server.tool_create_rlc_schematic(
+                    {
+                        "output_dir": tmp,
+                        "resistance": "100",
+                        "inductance": "10m",
+                        "capacitance": "10u",
+                        "source": "PULSE(0 5 0 1u 1u 100m 200m)",
+                    }
+                )
+
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_description_rejects_non_underdamped_rlc_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "zeta < 1"):
+                server.tool_create_schematic_from_description(
+                    {
+                        "description": "Generate a 5V step RLC circuit with R=100, L=10mH, and C=10uF",
+                        "output_dir": tmp,
+                        "open": False,
+                        "simulate": False,
+                    }
+                )
+
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
     def test_create_rlc_schematic_generates_expected_directives(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = server.tool_create_rlc_schematic(

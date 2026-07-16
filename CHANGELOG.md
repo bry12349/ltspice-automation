@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.5.0 - Reliability Guardrails
+
+Date: 2026-07-16
+
+### Fixed
+
+- Forwarded `ltspice_path` from `create_schematic_from_description` to batch simulation.
+- Rejected AC, frequency-response, and sine natural-language requests before transient template generation.
+- Rejected parseable RLC inputs where `zeta >= 1`, preserving the underdamped template boundary.
+- Changed implicit report output from package-level `reports/` files to a sibling `<schematic-stem>_report.md` file.
+
+### Tests and Documentation
+
+- Added regression tests for source-mode rejection, path forwarding, RLC damping validation, and RC/RL/RLC default report paths.
+- Updated plugin/MCP versions, README, installation guidance, roadmap, skill guidance, and the historical audit status.
+
+### Compatibility Impact
+
+- Existing MCP tool names and valid RC/RL/RLC step-response behavior remain unchanged.
+- Callers that relied on implicit package-level report files should pass `report_path` explicitly or read the report path returned by the tool.
+- AC, sine, critical, and overdamped RLC natural-language requests now fail early rather than producing a misleading transient validation result.
+
 ## v0.4.0 - Underdamped Series RLC Workflow
 
 Date: 2026-07-07

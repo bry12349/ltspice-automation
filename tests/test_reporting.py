@@ -8,6 +8,35 @@ from mcp import server
 
 
 class RcReportTests(unittest.TestCase):
+    def test_rc_default_report_is_saved_next_to_schematic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / "rc-default.log"
+            log_path.write_text("placeholder\n", encoding="utf-8")
+            fake_log = {
+                "warnings": [],
+                "errors": [],
+                "measurements": {
+                    "vout_at_1ms": "V(out) =0.631937 at 0.001",
+                    "vout_at_5ms": "V(out) =0.993259 at 0.005",
+                    "tau_cross": "V(out)=0.632121 AT 0.0010005",
+                },
+            }
+            with mock.patch.object(server, "tool_run_simulation", return_value={"returncode": 0}), mock.patch.object(
+                server, "tool_parse_log", return_value=fake_log
+            ), mock.patch.object(reporting, "generate_rc_lowpass_report", return_value={"path": "ignored"}) as generate:
+                server.tool_create_schematic_from_description(
+                    {
+                        "description": "Generate a 1V step RC low-pass circuit",
+                        "output_dir": tmp,
+                        "filename": "rc-default",
+                        "overwrite": True,
+                        "open": False,
+                        "simulate": True,
+                    }
+                )
+
+        self.assertEqual(generate.call_args.args[1], Path(tmp).resolve() / "rc-default_report.md")
+
     def test_generate_rc_report_writes_required_sections(self):
         with tempfile.TemporaryDirectory() as tmp:
             report_path = Path(tmp) / "rc_lowpass_report.md"
