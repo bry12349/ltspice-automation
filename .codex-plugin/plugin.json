@@ -1,6 +1,6 @@
 {
   "name": "ltspice-automation",
-  "version": "0.5.1",
+  "version": "0.5.1+codex.20260716061300",
   "description": "Create, simulate, validate, parse, and report LTspice RC, RL, and RLC step-response workflows.",
   "author": {
     "name": "bry12349",
