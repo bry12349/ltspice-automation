@@ -11,6 +11,8 @@ Prevent LTspice execution and validation from reporting false success, make natu
 3. `_source_from_description` defaults to `DC <Vin>` when the request omits the word "step". The generated `.tran` analysis starts from the DC operating point, but validation compares it with a zero-to-Vin step response.
 4. Numeric component values are not checked for positivity. Zero RC values generate `.tran 0 0`; negative RLC values enter complex-number calculations and expose an internal Python type error.
 5. Log severity detection uses substring matching, so benign text such as "No errors found" is classified as an error.
+6. Single-letter parameter aliases are not token-bounded, so the `C` in `5V RLC` can consume the input voltage as capacitance.
+7. Input voltage inference only recognizes unnamed amplitudes when they are followed by `step`/`阶跃`, so plain `5V RLC` falls back to 1V.
 
 ## Considered Approaches
 
@@ -44,6 +46,7 @@ The subprocess already passes arguments without a shell, so quoting is not the c
 
 - Explicit `PULSE(...)` input remains unchanged.
 - A parsed or explicit `DC <Vin>` source is converted to the existing long zero-to-Vin pulse used by step-response templates.
+- An explicitly unit-labeled voltage such as `5V` is used as Vin even when the request omits the word "step".
 - AC and sine sources remain rejected.
 
 ### Component validation
@@ -52,6 +55,7 @@ The subprocess already passes arguments without a shell, so quoting is not the c
 - Invalid numeric values raise `RuntimeError` naming the component and requiring a positive value before a schematic is written.
 - Unparseable LTspice expressions remain allowed and are left for LTspice to evaluate.
 - The underdamped RLC check continues after positivity validation.
+- Single-letter R/L/C aliases match only standalone parameter tokens, not letters embedded in words such as `RLC`.
 
 ### Log severity
 

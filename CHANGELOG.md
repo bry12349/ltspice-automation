@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.5.1 - Simulation and Parser Reliability
+
+Date: 2026-07-16
+
+### Fixed
+
+- Prevented LTspice's macOS whitespace-path failure by staging batch inputs in a no-whitespace temporary directory and copying generated artifacts back.
+- Removed stale `.log/.raw/.op.raw/.net/.db` outputs before each run and required a fresh log before reporting simulation success.
+- Added explicit `ok`, `reason`, and `staged_for_whitespace` fields to `run_simulation` results.
+- Converted natural-language DC/default sources into zero-to-Vin step pulses.
+- Rejected parseable zero or negative R/L/C values with component-specific messages.
+- Prevented short `R`, `L`, and `C` names from matching letters inside words such as `RLC`.
+- Inferred explicit values such as `5V` even when they are not followed by the word `step`.
+- Replaced broad log severity substring matching with explicit prefixes and rejected non-positive timeouts.
+
+### Compatibility Impact
+
+- Existing MCP tool names and successful RC/RL/RLC workflows remain compatible.
+- `run_simulation` includes additional status fields and may remove stale derived artifacts before invoking LTspice.
+- Invalid numeric component values now fail before schematic creation instead of producing invalid directives or internal Python errors.
+
 ## v0.5.0 - Reliability Guardrails
 
 Date: 2026-07-16

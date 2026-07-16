@@ -144,7 +144,9 @@ Call it for every numeric R/C, R/L, and R/L/C template before analysis or measur
 
 - [ ] **Step 4: Convert natural-language DC sources with `_long_step_source(source)` before template-specific analysis. Remove the RLC-only duplicate conversion.**
 
-- [ ] **Step 5: Run focused and complete unit suites; commit with `fix: validate components and normalize step sources`.**
+- [ ] **Step 5: Bound single-letter R/L/C aliases so they do not match inside `RLC`, and infer explicitly unit-labeled voltages such as `5V` without requiring a following `step` token.**
+
+- [ ] **Step 6: Run focused and complete unit suites; commit with `fix: validate components and normalize step sources`.**
 
 ### Task 3: Tighten log severity and timeout validation
 

@@ -1132,7 +1132,7 @@ def handle_request(request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return _jsonrpc_result(message_id, {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "ltspice-automation", "version": "0.5.0"},
+                "serverInfo": {"name": "ltspice-automation", "version": "0.5.1"},
             })
         if method == "notifications/initialized":
             return None

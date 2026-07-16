@@ -222,6 +222,19 @@ Status: completed in v0.5.0.
 - Moved default generated reports beside their source schematics, preserving committed example reports.
 - Added regression coverage for each guardrail.
 
+## Phase 4.6: Simulation and Parser Reliability
+
+Status: completed in v0.5.1.
+
+### Delivered
+
+- Added transparent no-whitespace staging for LTspice batch runs and copied fresh artifacts back to the requested directory.
+- Removed stale derived outputs before simulation and required a fresh log before reporting success.
+- Converted default/DC natural-language sources to step pulses.
+- Rejected parseable zero or negative R/L/C values before schematic creation.
+- Bounded short `R`, `L`, and `C` parameter tokens and inferred explicitly unit-labeled voltage amplitudes.
+- Tightened log severity parsing and timeout validation.
+
 ## Phase 5: Add Buck Converter
 
 ### Goal
