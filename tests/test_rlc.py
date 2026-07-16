@@ -9,6 +9,35 @@ from mcp import validation
 
 
 class RlcTemplateTests(unittest.TestCase):
+    def test_create_rlc_schematic_rejects_non_underdamped_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "zeta < 1"):
+                server.tool_create_rlc_schematic(
+                    {
+                        "output_dir": tmp,
+                        "resistance": "100",
+                        "inductance": "10m",
+                        "capacitance": "10u",
+                        "source": "PULSE(0 5 0 1u 1u 100m 200m)",
+                    }
+                )
+
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_description_rejects_non_underdamped_rlc_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "zeta < 1"):
+                server.tool_create_schematic_from_description(
+                    {
+                        "description": "Generate a 5V step RLC circuit with R=100, L=10mH, and C=10uF",
+                        "output_dir": tmp,
+                        "open": False,
+                        "simulate": False,
+                    }
+                )
+
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
     def test_create_rlc_schematic_generates_expected_directives(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = server.tool_create_rlc_schematic(

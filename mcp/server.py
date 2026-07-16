@@ -233,6 +233,7 @@ def tool_create_rlc_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     inductance = str(args.get("inductance") or "10m")
     capacitance = str(args.get("capacitance") or "10u")
     source = str(args.get("source") or "PULSE(0 5 0 1u 1u 100m 200m)")
+    _require_underdamped_rlc(resistance, inductance, capacitance, source)
     analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
     measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)
     lines = _rlc_series_asc(title, resistance, inductance, capacitance, source, analysis, measures)
@@ -433,6 +434,15 @@ def _rlc_parameters(resistance: str, inductance: str, capacitance: str, source: 
         result["omega_d"] = omega_d
         result["peak_time"] = 3.141592653589793 / omega_d
     return result
+
+
+def _require_underdamped_rlc(resistance: str, inductance: str, capacitance: str, source: str) -> None:
+    params = _rlc_parameters(resistance, inductance, capacitance, source)
+    if params and params["zeta"] >= 1:
+        raise RuntimeError(
+            "The RLC series template requires zeta < 1; "
+            f"calculated zeta={params['zeta']:.6g}."
+        )
 
 
 def _default_rlc_analysis(resistance: str, inductance: str, capacitance: str) -> str:
@@ -715,6 +725,7 @@ def tool_create_schematic_from_description(args: Dict[str, Any]) -> Dict[str, An
         resistance = str(args.get("resistance") or _parse_value(description, ["电阻", "r", "resistor", "resistance"], "10"))
         inductance = str(args.get("inductance") or _parse_value(description, ["电感", "l", "inductor", "inductance"], "10m"))
         capacitance = str(args.get("capacitance") or _parse_value(description, ["电容", "c", "capacitor", "capacitance"], "10u"))
+        _require_underdamped_rlc(resistance, inductance, capacitance, source)
         analysis = str(args.get("analysis") or _default_rlc_analysis(resistance, inductance, capacitance))
         measures = args.get("measures") or _default_rlc_measures(resistance, inductance, capacitance, source)
         lines = _rlc_series_asc(title, resistance, inductance, capacitance, source, analysis, measures)
