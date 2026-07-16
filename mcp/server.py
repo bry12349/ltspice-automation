@@ -872,7 +872,10 @@ def tool_run_simulation(args: Dict[str, Any]) -> Dict[str, Any]:
     if not input_path or not input_path.exists():
         raise RuntimeError("input_path must point to an existing .cir, .net, or .asc file.")
     cwd = _expand_path(args.get("cwd")) or input_path.parent
-    timeout = int(args.get("timeout_seconds") or 120)
+    timeout_value = args.get("timeout_seconds")
+    timeout = 120 if timeout_value is None else int(timeout_value)
+    if timeout <= 0:
+        raise RuntimeError("timeout_seconds must be positive.")
     expected = _simulation_outputs(input_path)
     _remove_simulation_outputs(input_path, expected)
     staged_for_whitespace = bool(re.search(r"\s", str(input_path)) or re.search(r"\s", str(cwd)))
@@ -947,9 +950,11 @@ def tool_parse_log(args: Dict[str, Any]) -> Dict[str, Any]:
     if not path or not path.exists():
         raise RuntimeError("log_path must point to an existing LTspice .log file.")
     text = path.read_text(errors="replace")
-    warnings = [line.strip() for line in text.splitlines() if "warning" in line.lower()]
-    error_markers = ["error", "failed", "expected", "unknown", "can't", "cannot", "not found"]
-    errors = [line.strip() for line in text.splitlines() if any(marker in line.lower() for marker in error_markers)]
+    lines = text.splitlines()
+    warning_prefixes = ("warning",)
+    error_prefixes = ("error", "fatal error", "failed to", "can't", "cannot")
+    warnings = [line.strip() for line in lines if line.strip().lower().startswith(warning_prefixes)]
+    errors = [line.strip() for line in lines if line.strip().lower().startswith(error_prefixes)]
     return {
         "path": str(path),
         "line_count": len(text.splitlines()),

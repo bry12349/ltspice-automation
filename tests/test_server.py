@@ -95,6 +95,17 @@ class RcMeasurementTests(unittest.TestCase):
 
 
 class SimulationStatusTests(unittest.TestCase):
+    def test_run_simulation_rejects_non_positive_timeout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            schematic = Path(tmp) / "timeout.asc"
+            schematic.write_text("Version 4\n", encoding="utf-8")
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            with mock.patch.object(server, "_ltspice_executable", return_value=Path("/tmp/LTspice")), mock.patch.object(
+                server.subprocess, "run", return_value=completed
+            ):
+                with self.assertRaisesRegex(RuntimeError, "timeout_seconds must be positive"):
+                    server.tool_run_simulation({"input_path": str(schematic), "timeout_seconds": 0})
+
     def test_run_simulation_stages_whitespace_path_and_copies_outputs_back(self):
         with tempfile.TemporaryDirectory(prefix="ltspice test ") as tmp:
             schematic = Path(tmp) / "test circuit.asc"

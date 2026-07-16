@@ -70,7 +70,9 @@ class FixtureLogParsingTests(unittest.TestCase):
                         "solver: Normal",
                         "temp: 27",
                         "Warning: timestep reduced",
+                        "No warnings emitted during post-check",
                         "vout_at_1ms: V(out)=0.631937 at 0.001",
+                        "No errors found during post-check",
                         "Fatal Error: node out is floating",
                     ]
                 ),
