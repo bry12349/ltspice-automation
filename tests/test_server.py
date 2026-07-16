@@ -1,3 +1,4 @@
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -74,6 +75,50 @@ class RcMeasurementTests(unittest.TestCase):
 
 
 class SimulationStatusTests(unittest.TestCase):
+    def test_run_simulation_stages_whitespace_path_and_copies_outputs_back(self):
+        with tempfile.TemporaryDirectory(prefix="ltspice test ") as tmp:
+            schematic = Path(tmp) / "test circuit.asc"
+            schematic.write_text("Version 4\n", encoding="utf-8")
+
+            def fake_run(cmd, cwd, text, capture_output, timeout):
+                staged = Path(cmd[-1])
+                self.assertNotIn(" ", str(staged))
+                staged.with_suffix(".log").write_text("measurement: value=1\n", encoding="utf-8")
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+
+            with mock.patch.object(server, "_ltspice_executable", return_value=Path("/tmp/LTspice")), mock.patch.object(
+                server.subprocess, "run", side_effect=fake_run
+            ):
+                result = server.tool_run_simulation({"input_path": str(schematic)})
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["reason"], "simulation_passed")
+            self.assertTrue(result["staged_for_whitespace"])
+            self.assertTrue(schematic.with_suffix(".log").exists())
+
+    def test_run_simulation_does_not_accept_a_stale_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            schematic = Path(tmp) / "stale.asc"
+            schematic.write_text("Version 4\n", encoding="utf-8")
+            schematic.with_suffix(".log").write_text("old measurement\n", encoding="utf-8")
+            completed = subprocess.CompletedProcess([], 0, "", "")
+            with mock.patch.object(server, "_ltspice_executable", return_value=Path("/tmp/LTspice")), mock.patch.object(
+                server.subprocess, "run", return_value=completed
+            ):
+                result = server.tool_run_simulation({"input_path": str(schematic)})
+
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["reason"], "log_missing")
+            self.assertFalse(schematic.with_suffix(".log").exists())
+
+    def test_simulation_status_honors_explicit_failed_run_with_existing_log(self):
+        status = server._simulation_status(
+            {"returncode": 0, "ok": False, "reason": "log_missing"},
+            {"errors": [], "measurements": {"peak_voltage": "8.0"}},
+        )
+
+        self.assertEqual(status, {"ok": False, "reason": "log_missing"})
+
     def test_description_forwards_ltspice_path_to_simulation(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(server, "tool_run_simulation", return_value={"returncode": 1}) as run:

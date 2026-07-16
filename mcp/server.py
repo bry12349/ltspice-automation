@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -676,6 +677,8 @@ def _write_schematic(output_dir: Path, filename: str, lines: List[str], overwrit
 def _simulation_status(simulation: Optional[Dict[str, Any]], log: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if simulation is None:
         return {"ok": None, "reason": "simulation_not_requested"}
+    if simulation.get("ok") is False:
+        return {"ok": False, "reason": simulation.get("reason") or "simulation_failed"}
     if simulation.get("returncode") != 0:
         return {"ok": False, "reason": "ltspice_returncode_nonzero"}
     if log is None:
@@ -815,6 +818,32 @@ def tool_open_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _simulation_outputs(input_path: Path) -> Dict[str, Path]:
+    return {
+        "log": input_path.with_suffix(".log"),
+        "raw": input_path.with_suffix(".raw"),
+        "op_raw": input_path.with_suffix(".op.raw"),
+        "net": input_path.with_suffix(".net"),
+        "db": input_path.with_suffix(".db"),
+    }
+
+
+def _remove_simulation_outputs(input_path: Path, outputs: Dict[str, Path]) -> None:
+    for path in outputs.values():
+        if path != input_path and path.exists():
+            path.unlink()
+
+
+def _run_ltspice(exe: Path, input_path: Path, cwd: Path, timeout: int) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [str(exe), "-b", str(input_path)],
+        cwd=str(cwd),
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+    )
+
+
 def tool_run_simulation(args: Dict[str, Any]) -> Dict[str, Any]:
     exe = _ltspice_executable(args.get("ltspice_path"))
     if not exe:
@@ -824,19 +853,41 @@ def tool_run_simulation(args: Dict[str, Any]) -> Dict[str, Any]:
         raise RuntimeError("input_path must point to an existing .cir, .net, or .asc file.")
     cwd = _expand_path(args.get("cwd")) or input_path.parent
     timeout = int(args.get("timeout_seconds") or 120)
-    cmd = [str(exe), "-b", str(input_path)]
-    proc = subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True, timeout=timeout)
-    expected = {
-        "log": input_path.with_suffix(".log"),
-        "raw": input_path.with_suffix(".raw"),
-        "op_raw": input_path.with_suffix(".op.raw"),
-    }
+    expected = _simulation_outputs(input_path)
+    _remove_simulation_outputs(input_path, expected)
+    staged_for_whitespace = bool(re.search(r"\s", str(input_path)) or re.search(r"\s", str(cwd)))
+
+    if staged_for_whitespace:
+        with tempfile.TemporaryDirectory(prefix="ltspice-automation-") as tmp:
+            staged_input = Path(tmp) / f"simulation{input_path.suffix}"
+            shutil.copy2(input_path, staged_input)
+            staged_outputs = _simulation_outputs(staged_input)
+            proc = _run_ltspice(exe, staged_input, staged_input.parent, timeout)
+            cmd = [str(exe), "-b", str(staged_input)]
+            for name, staged_path in staged_outputs.items():
+                if staged_path != staged_input and staged_path.exists():
+                    shutil.copy2(staged_path, expected[name])
+    else:
+        proc = _run_ltspice(exe, input_path, cwd, timeout)
+        cmd = [str(exe), "-b", str(input_path)]
+
+    log_exists = expected["log"].exists()
+    if proc.returncode != 0:
+        reason = "ltspice_returncode_nonzero"
+    elif not log_exists:
+        reason = "log_missing"
+    else:
+        reason = "simulation_passed"
+    ok = proc.returncode == 0 and log_exists
     return {
         "command": cmd,
         "cwd": str(cwd),
         "returncode": proc.returncode,
         "stdout": proc.stdout[-4000:],
         "stderr": proc.stderr[-4000:],
+        "ok": ok,
+        "reason": reason,
+        "staged_for_whitespace": staged_for_whitespace,
         "expected_outputs": {name: str(path) for name, path in expected.items() if path.exists()},
     }
 
