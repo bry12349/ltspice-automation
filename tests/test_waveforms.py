@@ -31,7 +31,7 @@ def _buck_table():
 class WaveformParserTests(unittest.TestCase):
     def test_parsers_normalize_time_and_signal_names(self):
         ngspice = waveforms.read_waveform(FIXTURES / "ngspice_rc_wrdata.txt", "ngspice")
-        ltspice = waveforms.read_waveform(FIXTURES / "ltspice_rc_ascii.raw", "ltspice")
+        ltspice = waveforms.read_waveform(FIXTURES / "ltspice_rc_ascii.txt", "ltspice")
 
         self.assertEqual(ngspice["columns"][:2], ["time_s", "V(out)"])
         self.assertEqual(ltspice["columns"], ["time_s", "V(out)"])
