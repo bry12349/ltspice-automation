@@ -166,6 +166,32 @@ class SweepExecutionTests(unittest.TestCase):
         self.assertEqual(len(result["points"]), 3)
         self.assertEqual(result["points"][1]["reason"], "simulation_failed")
 
+    def test_validation_failure_is_not_reported_as_simulation_passed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            failed_validation = _successful_point(Path(tmp), "1k")
+            failed_validation["validation"] = {"status": "FAIL"}
+
+            with mock.patch.object(sweeps, "_run_point", return_value=failed_validation):
+                result = sweeps.run_sweep(_request(tmp, ["1k", "2k"]))
+
+        self.assertEqual(result["points"][0]["status"], "FAIL")
+        self.assertEqual(result["points"][0]["reason"], "validation_failed")
+
+    def test_point_exception_detail_is_written_to_summary_and_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                sweeps,
+                "_run_point",
+                side_effect=RuntimeError("capacitor model rejected"),
+            ):
+                result = sweeps.run_sweep(_request(tmp, ["1k", "2k"]))
+                summary = Path(result["summary_csv"]).read_text(encoding="utf-8")
+                report = Path(result["report"]["path"]).read_text(encoding="utf-8")
+
+        self.assertIn("error", summary.splitlines()[0])
+        self.assertIn("capacitor model rejected", summary)
+        self.assertIn("capacitor model rejected", report)
+
     def test_point_directories_are_collision_free(self):
         with tempfile.TemporaryDirectory() as tmp:
             directories = []

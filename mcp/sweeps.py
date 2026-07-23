@@ -155,6 +155,7 @@ def _write_summary(points: List[Dict[str, Any]], path: Path) -> None:
         "value",
         "status",
         "reason",
+        "error",
         "backend",
         "waveform_csv",
     ] + metric_names
@@ -170,6 +171,7 @@ def _write_summary(points: List[Dict[str, Any]], path: Path) -> None:
                     "value": point["value"],
                     "status": point["status"],
                     "reason": point.get("reason", ""),
+                    "error": point.get("error", ""),
                     "backend": point.get("backend", ""),
                     "waveform_csv": point.get("waveform_csv", ""),
                 }
@@ -179,6 +181,9 @@ def _write_summary(points: List[Dict[str, Any]], path: Path) -> None:
 
 
 def _render_report(request: Dict[str, Any], points: List[Dict[str, Any]], status: str, plot_path: str) -> str:
+    def cell(value: Any) -> str:
+        return str(value or "").replace("\n", " ").replace("|", "\\|")
+
     rows = []
     for point in points:
         metrics = ", ".join(
@@ -187,7 +192,8 @@ def _render_report(request: Dict[str, Any], points: List[Dict[str, Any]], status
         )
         rows.append(
             f"| {point['index']} | `{point['value']}` | `{point['status']}` | "
-            f"`{point.get('reason', '')}` | {metrics or 'n/a'} |"
+            f"`{cell(point.get('reason'))}` | {cell(point.get('error')) or 'n/a'} | "
+            f"{metrics or 'n/a'} |"
         )
     return "\n".join(
         [
@@ -199,8 +205,8 @@ def _render_report(request: Dict[str, Any], points: List[Dict[str, Any]], status
             f"- Overall result: `{status}`",
             f"- Overlay plot: `{plot_path or 'n/a'}`",
             "",
-            "| Index | Value | Status | Reason | Metrics |",
-            "| ---: | --- | --- | --- | --- |",
+            "| Index | Value | Status | Reason | Error | Metrics |",
+            "| ---: | --- | --- | --- | --- | --- |",
             *rows,
             "",
             "A sweep passes only when every point completes simulation, waveform analysis, and circuit validation.",
@@ -244,16 +250,25 @@ def run_sweep(args: Dict[str, Any]) -> Dict[str, Any]:
                 "backend": request["backend"],
             }
         point = dict(raw_result)
+        point_status = _point_status(raw_result)
         point.update(
             {
                 "index": index,
                 "parameter": request["parameter"],
                 "value": value,
-                "status": _point_status(raw_result),
+                "status": point_status,
                 "point_dir": str(point_dir),
             }
         )
-        if not point.get("reason"):
+        validation = raw_result.get("validation")
+        if (
+            point_status == "FAIL"
+            and raw_result.get("ok")
+            and validation
+            and validation.get("status") != "PASS"
+        ):
+            point["reason"] = "validation_failed"
+        elif not point.get("reason"):
             point["reason"] = (
                 "simulation_passed"
                 if point["status"] == "PASS"

@@ -17,7 +17,7 @@ sweeps, and Linux CI.
 
 ### Results Before Release Push
 
-- Unit tests: 89 passed.
+- Unit tests: 91 passed.
 - Python compilation: passed.
 - Existing LTspice RC, RL, and RLC smoke tests: passed.
 - LTspice Buck smoke: PASS.
