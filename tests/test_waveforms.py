@@ -1,5 +1,6 @@
 import csv
 import math
+import struct
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,6 +55,34 @@ class WaveformParserTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "finite"):
             waveforms.validate_table(table)
+
+    def test_ltspice_binary_raw_is_normalized(self):
+        header = "\n".join(
+            [
+                "Title: binary fixture",
+                "Plotname: Transient Analysis",
+                "Flags: real forward",
+                "No. Variables: 2",
+                "No. Points: 3",
+                "Variables:",
+                "\t0\ttime\ttime",
+                "\t1\tV(out)\tvoltage",
+                "Binary:",
+                "",
+            ]
+        ).encode("utf-16le")
+        payload = b"".join(
+            struct.pack("<df", time_s, voltage)
+            for time_s, voltage in ((0.0, 0.0), (0.001, 0.6321206), (0.005, 0.9932621))
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "fixture.raw"
+            path.write_bytes(header + payload)
+            table = waveforms.read_waveform(path, "ltspice")
+
+        self.assertEqual(table["columns"], ["time_s", "V(out)"])
+        self.assertEqual(len(table["rows"]), 3)
+        self.assertAlmostEqual(table["rows"][1][1], 0.6321206, places=6)
 
 
 class WaveformArtifactTests(unittest.TestCase):

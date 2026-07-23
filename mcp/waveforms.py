@@ -2,6 +2,7 @@ import csv
 import html
 import math
 import re
+import struct
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -112,12 +113,66 @@ def _parse_tabular(text: str) -> Table:
     return validate_table({"columns": columns, "rows": rows})
 
 
+def _parse_ltspice_binary(data: bytes) -> Table:
+    utf16_marker = "Binary:".encode("utf-16le")
+    marker_index = data.find(utf16_marker)
+    if marker_index < 0:
+        raise RuntimeError("LTspice binary RAW header is missing Binary section")
+    newline_index = data.find(b"\n\x00", marker_index)
+    if newline_index < 0:
+        raise RuntimeError("LTspice binary RAW header is truncated")
+    payload_offset = newline_index + 2
+    header = data[:payload_offset].decode("utf-16le")
+    variables_match = re.search(r"(?m)^No\. Variables:\s*(\d+)\s*$", header)
+    points_match = re.search(r"(?m)^No\. Points:\s*(\d+)\s*$", header)
+    flags_match = re.search(r"(?m)^Flags:\s*(.+?)\s*$", header)
+    variables_section = header.split("Variables:\n", 1)
+    if not variables_match or not points_match or len(variables_section) != 2:
+        raise RuntimeError("LTspice binary RAW header is missing dimensions or variables")
+    variable_count = int(variables_match.group(1))
+    point_count = int(points_match.group(1))
+    columns = []
+    for line in variables_section[1].splitlines():
+        match = re.match(r"^\s*\d+\s+(\S+)", line)
+        if match:
+            columns.append(_normalize_column(match.group(1)))
+    if len(columns) != variable_count:
+        raise RuntimeError(
+            f"LTspice binary RAW declares {variable_count} variables but lists {len(columns)}"
+        )
+
+    payload = data[payload_offset:]
+    all_double = flags_match is not None and "double" in flags_match.group(1).lower().split()
+    bytes_per_point = 8 * variable_count if all_double else 8 + 4 * (variable_count - 1)
+    expected_bytes = point_count * bytes_per_point
+    if len(payload) < expected_bytes:
+        raise RuntimeError(
+            f"LTspice binary RAW payload has {len(payload)} bytes; expected {expected_bytes}"
+        )
+    rows = []
+    offset = 0
+    for _ in range(point_count):
+        time_s = struct.unpack_from("<d", payload, offset)[0]
+        offset += 8
+        if all_double:
+            signals = list(struct.unpack_from(f"<{variable_count - 1}d", payload, offset))
+            offset += 8 * (variable_count - 1)
+        else:
+            signals = list(struct.unpack_from(f"<{variable_count - 1}f", payload, offset))
+            offset += 4 * (variable_count - 1)
+        rows.append([time_s, *signals])
+    return validate_table({"columns": columns, "rows": rows})
+
+
 def read_waveform(path: Path, backend: str) -> Table:
     waveform_path = Path(path).expanduser().resolve()
     if not waveform_path.exists() or not waveform_path.is_file():
         raise RuntimeError("waveform path must point to an existing file")
+    data = waveform_path.read_bytes()
+    if backend == "ltspice" and "Binary:".encode("utf-16le") in data:
+        return _parse_ltspice_binary(data)
     try:
-        text = waveform_path.read_text(encoding="utf-8")
+        text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise RuntimeError(
             f"{backend} waveform is binary; configure the simulator for ASCII waveform output"

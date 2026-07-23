@@ -88,7 +88,7 @@ def rc_netlist(
             f"R1 in out {resistance}",
             f"C1 out 0 {capacitance}",
             ".option plotwinsize=0",
-            f".tran 0 {format_spice(stop)} 0 {format_spice(step)}",
+            f".tran {format_spice(step)} {format_spice(stop)} 0 {format_spice(step)}",
             ".save V(out)",
             ".end",
             "",

@@ -18,7 +18,7 @@ class PortableRcTests(unittest.TestCase):
         self.assertIn("V1 in 0 PULSE(0 1", text)
         self.assertIn("R1 in out 1k", text)
         self.assertIn("C1 out 0 1u", text)
-        self.assertIn(".tran 0 6m 0 10u", text)
+        self.assertIn(".tran 10u 6m 0 10u", text)
         self.assertIn(".save V(out)", text)
         self.assertTrue(text.rstrip().endswith(".end"))
 

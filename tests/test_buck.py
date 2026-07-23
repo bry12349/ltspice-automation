@@ -39,6 +39,8 @@ class BuckGenerationTests(unittest.TestCase):
         self.assertIn("D1 0 sw DMOD", netlist)
         self.assertIn("L1 sw out", netlist)
         self.assertIn("C1 out 0", netlist)
+        self.assertIn(".tran 100n 10m 0 100n", netlist)
+        self.assertNotIn(".tran 100n 10m 0 100n startup", netlist)
         self.assertIn(".save V(out) V(gate) I(L1)", netlist)
         self.assertIn("SYMBOL sw", schematic)
         self.assertIn("SYMATTR InstName L1", schematic)

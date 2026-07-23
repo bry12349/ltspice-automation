@@ -98,8 +98,9 @@ def render_netlist(parameters: Dict[str, float]) -> str:
             ".model DMOD D(Is=1n Rs=.01 N=1)",
             ".option plotwinsize=0",
             (
-                f".tran 0 {portable.format_spice(p['stop_time_s'])} 0 "
-                f"{portable.format_spice(p['max_step_s'])} startup"
+                f".tran {portable.format_spice(p['max_step_s'])} "
+                f"{portable.format_spice(p['stop_time_s'])} 0 "
+                f"{portable.format_spice(p['max_step_s'])}"
             ),
             ".save V(out) V(gate) I(L1)",
             ".end",

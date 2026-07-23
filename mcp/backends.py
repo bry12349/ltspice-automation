@@ -1,7 +1,9 @@
 import plistlib
+import os
 import shutil
 import subprocess
 import tempfile
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -58,6 +60,9 @@ def _command_version(executable: Optional[Path]) -> Optional[str]:
     except (OSError, subprocess.SubprocessError):
         return None
     text = (completed.stdout or completed.stderr).strip()
+    version = re.search(r"(?i)\bngspice-(\d+(?:\.\d+)*)\b", text)
+    if version:
+        return f"ngspice {version.group(1)}"
     return text.splitlines()[0] if text else None
 
 
@@ -116,13 +121,17 @@ def _run(
     command: list,
     cwd: Path,
     timeout_seconds: int,
+    extra_env: Optional[Dict[str, str]] = None,
 ) -> subprocess.CompletedProcess:
+    environment = os.environ.copy()
+    environment.update(extra_env or {})
     return subprocess.run(
         command,
         cwd=str(cwd),
         text=True,
         capture_output=True,
         timeout=timeout_seconds,
+        env=environment,
     )
 
 
@@ -186,13 +195,13 @@ def run_portable(
             staged_input = Path(tmp) / circuit.name
             shutil.copy2(circuit, staged_input)
             staged_paths = _derived_paths(staged_input)
-            command = [executable, "-b", "-ascii", str(staged_input)]
+            command = [executable, "-b", str(staged_input)]
             completed = _run(command, staged_input.parent, timeout_seconds)
             for name in ("raw", "log", "op_raw", "net", "db"):
                 if staged_paths[name].exists():
                     shutil.copy2(staged_paths[name], expected[name])
     elif chosen == "ltspice":
-        command = [executable, "-b", "-ascii", str(circuit)]
+        command = [executable, "-b", str(circuit)]
         completed = _run(command, circuit.parent, timeout_seconds)
     else:
         command = [
@@ -204,7 +213,12 @@ def run_portable(
             str(expected["raw"]),
             str(circuit),
         ]
-        completed = _run(command, circuit.parent, timeout_seconds)
+        completed = _run(
+            command,
+            circuit.parent,
+            timeout_seconds,
+            {"SPICE_ASCIIRAWFILE": "1"},
+        )
 
     return _status(
         completed,

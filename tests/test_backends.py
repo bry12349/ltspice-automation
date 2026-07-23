@@ -8,6 +8,18 @@ from mcp import backends
 
 
 class BackendSelectionTests(unittest.TestCase):
+    def test_ngspice_version_skips_banner_lines(self):
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            "******\n** ngspice-46 : Circuit level simulation program\n******\n",
+            "",
+        )
+        with mock.patch.object(backends.subprocess, "run", return_value=completed):
+            version = backends._command_version(Path("/usr/bin/ngspice"))
+
+        self.assertEqual(version, "ngspice 46")
+
     def test_auto_prefers_ltspice_then_ngspice(self):
         both = {
             "ltspice": {"found": True, "executable": "/Applications/LTspice"},
@@ -69,7 +81,8 @@ class PortableRunTests(unittest.TestCase):
             circuit = Path(tmp) / "case.cir"
             circuit.write_text("* case\n.end\n", encoding="utf-8")
 
-            def fake_run(command, cwd, text, capture_output, timeout):
+            def fake_run(command, cwd, text, capture_output, timeout, env):
+                self.assertEqual(env["SPICE_ASCIIRAWFILE"], "1")
                 raw_path = Path(command[command.index("-r") + 1])
                 raw_path.write_text("fresh waveform\n", encoding="utf-8")
                 Path(command[command.index("-o") + 1]).write_text("ngspice log\n", encoding="utf-8")
@@ -87,12 +100,12 @@ class PortableRunTests(unittest.TestCase):
         self.assertTrue(result["raw_path"].endswith("case.raw"))
         self.assertTrue(result["log_path"].endswith("case.log"))
 
-    def test_ltspice_uses_ascii_batch_mode(self):
+    def test_ltspice_uses_binary_batch_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
             circuit = Path(tmp) / "case.cir"
             circuit.write_text("* case\n.end\n", encoding="utf-8")
 
-            def fake_run(command, cwd, text, capture_output, timeout):
+            def fake_run(command, cwd, text, capture_output, timeout, env):
                 circuit.with_suffix(".raw").write_text("fresh waveform\n", encoding="utf-8")
                 circuit.with_suffix(".log").write_text("ltspice log\n", encoding="utf-8")
                 return subprocess.CompletedProcess(command, 0, "", "")
@@ -103,7 +116,8 @@ class PortableRunTests(unittest.TestCase):
                 result = backends.run_portable(circuit, backend="ltspice")
 
         self.assertTrue(result["ok"])
-        self.assertEqual(result["command"][1:3], ["-b", "-ascii"])
+        self.assertEqual(result["command"][1], "-b")
+        self.assertNotIn("-ascii", result["command"])
 
     def test_non_positive_timeout_fails_before_execution(self):
         with tempfile.TemporaryDirectory() as tmp:
