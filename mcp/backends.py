@@ -2,7 +2,9 @@ import plistlib
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -91,7 +93,8 @@ def select_backend(name: str, detections: Dict[str, Dict[str, Any]]) -> str:
     if normalized not in {"auto", "ltspice", "ngspice"}:
         raise RuntimeError("backend must be auto, ltspice, or ngspice")
     if normalized == "auto":
-        for candidate in ("ltspice", "ngspice"):
+        preferred = ("ltspice", "ngspice") if sys.platform == "darwin" else ("ngspice", "ltspice")
+        for candidate in preferred:
             if detections.get(candidate, {}).get("found"):
                 return candidate
         raise RuntimeError("Neither LTspice nor ngspice is available")
@@ -135,6 +138,34 @@ def _run(
     )
 
 
+def _read_log(log_path: Path) -> str:
+    if not log_path.exists():
+        return ""
+    data = log_path.read_bytes()
+    for encoding in ("utf-8", "utf-16-le", "utf-16"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def _fatal_log_diagnostics(log_path: Path) -> list:
+    prefixes = (
+        "error:",
+        "error on ",
+        "fatal error",
+        "failed to ",
+        "can't ",
+        "cannot ",
+    )
+    return [
+        line.strip()
+        for line in _read_log(log_path).splitlines()
+        if line.strip().lower().startswith(prefixes)
+    ]
+
+
 def _status(
     completed: subprocess.CompletedProcess,
     backend: str,
@@ -144,9 +175,14 @@ def _status(
     raw_path: Path,
     log_path: Path,
     staged_for_whitespace: bool,
+    version: Optional[str],
+    duration_seconds: float,
 ) -> Dict[str, Any]:
+    log_errors = _fatal_log_diagnostics(log_path)
     if completed.returncode != 0:
         reason = f"{backend}_returncode_nonzero"
+    elif log_errors:
+        reason = "simulator_log_error"
     elif not raw_path.exists() or raw_path.stat().st_size == 0:
         reason = "waveform_missing"
     else:
@@ -155,6 +191,7 @@ def _status(
         "ok": reason == "simulation_passed",
         "reason": reason,
         "backend": backend,
+        "version": version,
         "executable": executable,
         "command": command,
         "cwd": str(cwd),
@@ -162,7 +199,15 @@ def _status(
         "stdout": completed.stdout[-4000:],
         "stderr": completed.stderr[-4000:],
         "staged_for_whitespace": staged_for_whitespace,
+        "duration_seconds": duration_seconds,
+        "fresh_outputs": [
+            name
+            for name, path in (("raw", raw_path), ("log", log_path))
+            if path.exists() and path.stat().st_size > 0
+        ],
     }
+    if log_errors:
+        result["log_errors"] = log_errors
     if raw_path.exists() and raw_path.stat().st_size > 0:
         result["raw_path"] = str(raw_path)
     if log_path.exists():
@@ -190,6 +235,7 @@ def run_portable(
     _clear_derived(expected)
 
     staged_for_whitespace = chosen == "ltspice" and " " in str(circuit)
+    started = time.monotonic()
     if staged_for_whitespace:
         with tempfile.TemporaryDirectory(prefix="ltspice-v060-") as tmp:
             staged_input = Path(tmp) / circuit.name
@@ -219,6 +265,7 @@ def run_portable(
             timeout_seconds,
             {"SPICE_ASCIIRAWFILE": "1"},
         )
+    duration_seconds = time.monotonic() - started
 
     return _status(
         completed,
@@ -229,4 +276,6 @@ def run_portable(
         expected["raw"],
         expected["log"],
         staged_for_whitespace,
+        detections[chosen].get("version"),
+        duration_seconds,
     )

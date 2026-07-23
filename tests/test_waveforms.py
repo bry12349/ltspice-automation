@@ -154,6 +154,26 @@ class WaveformArtifactTests(unittest.TestCase):
         self.assertTrue(artifacts_exist)
         self.assertLess(result["metrics"]["tau_error_percent"], 1.0)
 
+    def test_buck_export_defaults_steady_window_and_writes_metrics_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "buck.txt"
+            waveforms.write_csv(_buck_table(), source)
+            result = waveforms.export_from_args(
+                {
+                    "input_path": str(source),
+                    "backend": "ngspice",
+                    "output_path": str(Path(tmp) / "export.csv"),
+                    "circuit_type": "buck_converter",
+                    "parameters": {"vin": "12", "duty_cycle": 5.0 / 12.0},
+                }
+            )
+
+            metrics_text = Path(result["metrics_json"]).read_text(encoding="utf-8")
+
+        self.assertIn("vout_average_v", result["metrics"])
+        self.assertIn('"vout_average_v"', metrics_text)
+        self.assertAlmostEqual(result["metrics"]["steady_from_s"], 0.008)
+
 
 class MetricTests(unittest.TestCase):
     def test_rc_metrics_find_tau_and_rise_time(self):
@@ -168,6 +188,7 @@ class MetricTests(unittest.TestCase):
         self.assertLess(result["tau_error_percent"], 1.0)
         self.assertGreater(result["rise_time_10_90_s"], 0.002)
         self.assertAlmostEqual(result["final_voltage_v"], 1.0, places=2)
+        self.assertLess(result["final_voltage_error_percent"], 1.0)
 
     def test_buck_metrics_use_only_steady_state_window(self):
         result = waveforms.buck_metrics(
@@ -187,6 +208,27 @@ class MetricTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, r"I\(L1\)"):
             waveforms.buck_metrics(table, vin=12.0, duty_cycle=0.5, steady_from=0.5)
+
+    def test_buck_averages_are_time_weighted_for_uneven_samples(self):
+        table = {
+            "columns": ["time_s", "V(out)", "I(L1)"],
+            "rows": [
+                [0.0, 0.0, 0.0],
+                [1.0, 10.0, 2.0],
+                [9.0, 10.0, 2.0],
+                [10.0, 0.0, 0.0],
+            ],
+        }
+
+        result = waveforms.buck_metrics(
+            table,
+            vin=20.0,
+            duty_cycle=0.5,
+            steady_from=0.0,
+        )
+
+        self.assertAlmostEqual(result["vout_average_v"], 9.0)
+        self.assertAlmostEqual(result["inductor_current_average_a"], 1.8)
 
 
 if __name__ == "__main__":

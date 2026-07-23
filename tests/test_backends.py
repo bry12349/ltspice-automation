@@ -1,4 +1,5 @@
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -30,8 +31,17 @@ class BackendSelectionTests(unittest.TestCase):
             "ngspice": {"found": True, "executable": "/usr/bin/ngspice"},
         }
 
-        self.assertEqual(backends.select_backend("auto", both), "ltspice")
+        with mock.patch.object(backends.sys, "platform", "darwin"):
+            self.assertEqual(backends.select_backend("auto", both), "ltspice")
         self.assertEqual(backends.select_backend("auto", ngspice_only), "ngspice")
+
+    def test_auto_prefers_ngspice_on_linux_when_both_are_available(self):
+        both = {
+            "ltspice": {"found": True, "executable": "/usr/bin/LTspice"},
+            "ngspice": {"found": True, "executable": "/usr/bin/ngspice"},
+        }
+        with mock.patch.object(backends.sys, "platform", "linux"):
+            self.assertEqual(backends.select_backend("auto", both), "ngspice")
 
     def test_explicit_missing_backend_fails(self):
         detected = {
@@ -99,6 +109,33 @@ class PortableRunTests(unittest.TestCase):
         self.assertEqual(result["command"][1:3], ["-b", "-o"])
         self.assertTrue(result["raw_path"].endswith("case.raw"))
         self.assertTrue(result["log_path"].endswith("case.log"))
+        self.assertIn("duration_seconds", result)
+        self.assertIn("version", result)
+        self.assertEqual(result["fresh_outputs"], ["raw", "log"])
+
+    def test_fatal_log_diagnostic_cannot_pass_with_fresh_raw(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            circuit = Path(tmp) / "case.cir"
+            circuit.write_text("* case\n.end\n", encoding="utf-8")
+
+            def fake_run(command, cwd, text, capture_output, timeout, env):
+                raw_path = Path(command[command.index("-r") + 1])
+                raw_path.write_text("fresh waveform\n", encoding="utf-8")
+                Path(command[command.index("-o") + 1]).write_text(
+                    "Error: singular matrix\n", encoding="utf-8"
+                )
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            detections = self._detections("ngspice")
+            detections["ngspice"]["version"] = "ngspice 46"
+            with mock.patch.object(
+                backends, "detect_simulators", return_value=detections
+            ), mock.patch.object(backends.subprocess, "run", side_effect=fake_run):
+                result = backends.run_portable(circuit, backend="ngspice")
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["reason"], "simulator_log_error")
+        self.assertEqual(result["log_errors"], ["Error: singular matrix"])
 
     def test_ltspice_uses_binary_batch_mode(self):
         with tempfile.TemporaryDirectory() as tmp:

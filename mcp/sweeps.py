@@ -49,11 +49,22 @@ def validate_request(args: Dict[str, Any]) -> Dict[str, Any]:
     timeout_seconds = int(args.get("timeout_seconds", 120))
     if timeout_seconds <= 0:
         raise RuntimeError("timeout_seconds must be positive")
+    parameters = dict(args.get("parameters") or {})
+    representative = dict(parameters)
+    representative[parameter] = normalized_values[0]
+    if circuit_type == "rc_lowpass":
+        portable.rc_netlist(
+            representative.get("resistance", "1k"),
+            representative.get("capacitance", "1u"),
+            representative.get("vin", "1"),
+        )
+    else:
+        buck.validate_parameters(representative)
     return {
         "circuit_type": circuit_type,
         "parameter": parameter,
         "values": normalized_values,
-        "parameters": dict(args.get("parameters") or {}),
+        "parameters": parameters,
         "output_dir": str(Path(args.get("output_dir") or Path.cwd()).expanduser().resolve()),
         "backend": backend,
         "timeout_seconds": timeout_seconds,
@@ -84,17 +95,22 @@ def _run_point(request: Dict[str, Any], point_dir: Path, value: Any) -> Dict[str
             timeout_seconds=request["timeout_seconds"],
         )
         if result.get("ok") and result.get("metrics"):
-            error = result["metrics"]["tau_error_percent"]
-            result["validation"] = {
-                "status": "PASS" if error <= 2.0 else "FAIL",
-                "checks": [
+            checks = []
+            for metric in ("tau_error_percent", "final_voltage_error_percent"):
+                error = result["metrics"][metric]
+                checks.append(
                     {
-                        "metric": "tau_error_percent",
+                        "metric": metric,
                         "value": error,
                         "limit": 2.0,
                         "status": "PASS" if error <= 2.0 else "FAIL",
                     }
-                ],
+                )
+            result["validation"] = {
+                "status": "PASS"
+                if all(check["status"] == "PASS" for check in checks)
+                else "FAIL",
+                "checks": checks,
             }
         return result
 
@@ -202,11 +218,21 @@ def run_sweep(args: Dict[str, Any]) -> Dict[str, Any]:
     for path in (summary_path, plot_path, report_path):
         if path.exists() and not request["overwrite"]:
             raise RuntimeError(f"Refusing to overwrite existing file: {path}")
+    point_directories = [
+        destination / _point_id(index, value)
+        for index, value in enumerate(request["values"], 1)
+    ]
+    if not request["overwrite"]:
+        for point_dir in point_directories:
+            if point_dir.exists():
+                raise RuntimeError(f"Refusing to overwrite existing directory: {point_dir}")
     destination.mkdir(parents=True, exist_ok=True)
 
     points: List[Dict[str, Any]] = []
-    for index, value in enumerate(request["values"], 1):
-        point_dir = destination / _point_id(index, value)
+    for index, (value, point_dir) in enumerate(
+        zip(request["values"], point_directories),
+        1,
+    ):
         point_dir.mkdir(parents=True, exist_ok=True)
         try:
             raw_result = _run_point(request, point_dir, value)

@@ -89,8 +89,37 @@ class SweepValidationTests(unittest.TestCase):
                 }
             )
 
+    def test_invalid_fixed_parameter_fails_before_writing_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "new-sweep"
+            request = _request(output, ["1k", "2k"])
+            request["parameters"]["capacitance"] = "0"
+            with self.assertRaisesRegex(RuntimeError, "capacitance must be positive"):
+                sweeps.run_sweep(request)
+
+            self.assertFalse(output.exists())
+
 
 class SweepExecutionTests(unittest.TestCase):
+    def test_rc_point_requires_tau_and_final_voltage_accuracy(self):
+        request = sweeps.validate_request(_request(".", ["1k", "2k"]))
+        simulated = {
+            "ok": True,
+            "reason": "simulation_passed",
+            "backend": "ngspice",
+            "metrics": {
+                "tau_error_percent": 0.2,
+                "final_voltage_error_percent": 8.0,
+            },
+        }
+        with mock.patch.object(sweeps.portable, "run_rc_case", return_value=simulated):
+            result = sweeps._run_point(request, Path("."), "1k")
+
+        self.assertEqual(result["validation"]["status"], "FAIL")
+        checks = {item["metric"]: item["status"] for item in result["validation"]["checks"]}
+        self.assertEqual(checks["tau_error_percent"], "PASS")
+        self.assertEqual(checks["final_voltage_error_percent"], "FAIL")
+
     def test_sweep_writes_summary_plot_and_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             def fake_run(request, point_dir, value):
@@ -155,6 +184,20 @@ class SweepExecutionTests(unittest.TestCase):
             Path(tmp, "sweep_summary.csv").write_text("existing\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "Refusing to overwrite"):
                 sweeps.run_sweep(_request(tmp, ["1k", "2k"]))
+
+    def test_existing_point_directory_requires_overwrite_before_any_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            point_dir = Path(tmp) / "point-01-1k"
+            point_dir.mkdir()
+            existing = point_dir / "input.cir"
+            existing.write_text("keep me\n", encoding="utf-8")
+
+            with mock.patch.object(sweeps, "_run_point") as run_point:
+                with self.assertRaisesRegex(RuntimeError, "Refusing to overwrite"):
+                    sweeps.run_sweep(_request(tmp, ["1k", "2k"]))
+
+            run_point.assert_not_called()
+            self.assertEqual(existing.read_text(encoding="utf-8"), "keep me\n")
 
 
 if __name__ == "__main__":

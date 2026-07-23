@@ -1146,6 +1146,7 @@ TOOLS = {
                 "backend": {"type": "string", "enum": ["ltspice", "ngspice"]},
                 "output_path": {"type": "string"},
                 "plot_path": {"type": "string"},
+                "metrics_path": {"type": "string"},
                 "signal": {"type": "string"},
                 "label": {"type": "string"},
                 "title": {"type": "string"},

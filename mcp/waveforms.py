@@ -1,5 +1,6 @@
 import csv
 import html
+import json
 import math
 import re
 import struct
@@ -361,13 +362,45 @@ def rc_metrics(
     measured_tau = _crossing_time(normalized["rows"], signal_index, vin * 0.632120558)
     rise_start = _crossing_time(normalized["rows"], signal_index, vin * 0.1)
     rise_end = _crossing_time(normalized["rows"], signal_index, vin * 0.9)
+    final_voltage = normalized["rows"][-1][signal_index]
     return {
-        "final_voltage_v": normalized["rows"][-1][signal_index],
+        "final_voltage_v": final_voltage,
+        "final_voltage_error_percent": abs(final_voltage - vin) / abs(vin) * 100.0,
         "rise_time_10_90_s": rise_end - rise_start,
         "measured_tau_s": measured_tau,
         "theory_tau_s": theory_tau,
         "tau_error_percent": abs(measured_tau - theory_tau) / theory_tau * 100.0,
     }
+
+
+def _window_rows(rows: List[List[float]], start_time: float) -> List[List[float]]:
+    if start_time <= rows[0][0]:
+        return rows
+    for previous, current in zip(rows, rows[1:]):
+        if start_time == current[0]:
+            return rows[rows.index(current) :]
+        if previous[0] < start_time < current[0]:
+            fraction = (start_time - previous[0]) / (current[0] - previous[0])
+            interpolated = [
+                previous[index] + fraction * (current[index] - previous[index])
+                for index in range(len(previous))
+            ]
+            later = [row for row in rows if row[0] > start_time]
+            return [interpolated, *later]
+    return []
+
+
+def _time_average(rows: List[List[float]], signal_index: int) -> float:
+    duration = rows[-1][0] - rows[0][0]
+    if duration <= 0:
+        raise RuntimeError("steady-state window duration must be positive")
+    area = sum(
+        (current[0] - previous[0])
+        * (previous[signal_index] + current[signal_index])
+        / 2.0
+        for previous, current in zip(rows, rows[1:])
+    )
+    return area / duration
 
 
 def buck_metrics(
@@ -379,12 +412,12 @@ def buck_metrics(
     normalized = validate_table(table)
     voltage_index = _column_index(normalized, "V(out)")
     current_index = _column_index(normalized, "I(L1)")
-    steady_rows = [row for row in normalized["rows"] if row[0] >= steady_from]
+    steady_rows = _window_rows(normalized["rows"], steady_from)
     if len(steady_rows) < 2:
         raise RuntimeError("steady-state window must contain at least two waveform rows")
     voltages = [row[voltage_index] for row in steady_rows]
     currents = [row[current_index] for row in steady_rows]
-    voltage_average = sum(voltages) / len(voltages)
+    voltage_average = _time_average(steady_rows, voltage_index)
     voltage_min = min(voltages)
     voltage_max = max(voltages)
     ripple = voltage_max - voltage_min
@@ -396,7 +429,7 @@ def buck_metrics(
         "vout_max_v": voltage_max,
         "vout_ripple_pp_v": ripple,
         "vout_ripple_percent": ripple / abs(voltage_average) * 100.0 if voltage_average else float("inf"),
-        "inductor_current_average_a": sum(currents) / len(currents),
+        "inductor_current_average_a": _time_average(steady_rows, current_index),
         "inductor_current_min_a": min(currents),
         "inductor_current_peak_a": max(currents),
         "ideal_vout_v": ideal,
@@ -442,12 +475,29 @@ def export_from_args(args: Dict[str, Any]) -> Dict[str, Any]:
                 portable.spice_number(parameters.get("capacitance", "1u")),
             )
         elif circuit_type == "buck_converter":
+            steady_value = parameters.get("steady_from", parameters.get("steady_from_s"))
+            if steady_value is None:
+                steady_from = table["rows"][0][0] + (
+                    table["rows"][-1][0] - table["rows"][0][0]
+                ) * 0.8
+            else:
+                steady_from = portable.spice_number(steady_value)
             result["metrics"] = buck_metrics(
                 table,
-                portable.spice_number(parameters.get("vin", "12")),
+                portable.spice_number(parameters.get("vin", parameters.get("vin_v", "12"))),
                 portable.spice_number(parameters.get("duty_cycle", 5.0 / 12.0)),
-                portable.spice_number(parameters.get("steady_from")),
+                steady_from,
             )
         else:
             raise RuntimeError("circuit_type must be rc_lowpass or buck_converter")
+        metrics_path = Path(
+            args.get("metrics_path")
+            or output_path.with_name(f"{output_path.stem}_metrics.json")
+        ).expanduser().resolve()
+        metrics_path.parent.mkdir(parents=True, exist_ok=True)
+        metrics_path.write_text(
+            json.dumps(result["metrics"], indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        result["metrics_json"] = str(metrics_path)
     return result
