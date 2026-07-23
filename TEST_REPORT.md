@@ -17,27 +17,28 @@ sweeps, and Linux CI.
 
 ### Results Before Release Push
 
-- Unit tests: 81 passed.
+- Unit tests: 89 passed.
 - Python compilation: passed.
 - Existing LTspice RC, RL, and RLC smoke tests: passed.
 - LTspice Buck smoke: PASS.
 - ngspice RC and Buck smoke: PASS.
 - LTspice RC resistance sweep: PASS.
 - ngspice Buck duty-cycle sweep: PASS.
+- Portable plugin/skill package validation: passed.
 - Whitespace check: passed.
 
 ### Representative Metrics
 
 ```text
 LTspice Buck:
-  average Vout = 4.690156 V
-  ripple       = 0.371361 %
-  ideal error  = 6.196886 %
+  average Vout = 4.690221 V
+  ripple       = 0.371356 %
+  ideal error  = 6.195578 %
 
 ngspice Buck:
-  average Vout = 4.694168 V
-  ripple       = 0.364933 %
-  ideal error  = 6.116640 %
+  average Vout = 4.694216 V
+  ripple       = 0.364929 %
+  ideal error  = 6.115686 %
 
 ngspice RC:
   measured tau = 1.000003 ms
@@ -55,9 +56,11 @@ python3 scripts/rlc_smoke_test.py
 python3 scripts/buck_smoke_test.py
 python3 scripts/ngspice_smoke_test.py
 python3 scripts/sweep_smoke_test.py
+python3 scripts/validate_package.py
 python3 /Users/a0000/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py .
 python3 /Users/a0000/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/ltspice-automation
-git diff --check
+empty_tree=$(git hash-object -t tree /dev/null)
+git diff --check "$empty_tree" HEAD
 ```
 
 Linux GitHub Actions status is recorded after the release candidate is pushed.
