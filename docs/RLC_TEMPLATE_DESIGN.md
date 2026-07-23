@@ -98,4 +98,3 @@ The default RLC tolerance is `3%`.
 - Parallel RLC is not supported.
 - Overdamped and critically damped formulas are not implemented yet.
 - Waveform plotting is not implemented yet.
-

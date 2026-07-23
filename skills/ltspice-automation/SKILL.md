@@ -34,7 +34,8 @@ transient-analysis workflows.
 
 - `backend=ltspice`: require LTspice.
 - `backend=ngspice`: require ngspice.
-- `backend=auto`: prefer LTspice when available, otherwise use ngspice.
+- `backend=auto`: prefer LTspice on macOS when available; otherwise prefer
+  ngspice, with the other detected backend as fallback.
 
 GUI opening remains macOS-only. Portable `.cir` simulations and CI can use
 ngspice on Linux.

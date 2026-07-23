@@ -45,4 +45,3 @@ This is a better next step than Buck converter because it extends the existing p
 - New `scripts/rlc_smoke_test.py` passes on the verified macOS LTspice environment.
 - RLC report includes theory-vs-simulation and validation PASS/FAIL sections.
 - README, skill metadata, changelog, and test report reflect v0.4.0.
-

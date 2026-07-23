@@ -280,6 +280,7 @@ def create_buck(
     timeout_seconds: int = 60,
     ltspice_path: str = None,
     ngspice_path: str = None,
+    title: str = "Constrained asynchronous Buck converter",
 ) -> Dict[str, Any]:
     p = validate_parameters(parameters)
     destination = Path(output_dir).expanduser().resolve()
@@ -291,7 +292,7 @@ def create_buck(
             raise RuntimeError(f"Refusing to overwrite existing file: {path}")
     destination.mkdir(parents=True, exist_ok=True)
     asc_path.write_text(
-        "\n".join(render_schematic(p, "Constrained asynchronous Buck converter")) + "\n",
+        "\n".join(render_schematic(p, title)) + "\n",
         encoding="utf-8",
     )
     cir_path.write_text(render_netlist(p), encoding="utf-8")
@@ -384,4 +385,5 @@ def create_buck_from_args(args: Dict[str, Any]) -> Dict[str, Any]:
         timeout_seconds=int(args.get("timeout_seconds", 60)),
         ltspice_path=args.get("ltspice_path"),
         ngspice_path=args.get("ngspice_path"),
+        title=str(args.get("title") or "Constrained asynchronous Buck converter"),
     )

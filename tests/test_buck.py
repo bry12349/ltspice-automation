@@ -60,6 +60,20 @@ class BuckGenerationTests(unittest.TestCase):
         self.assertIn("Version 4", asc_text)
         self.assertIn("S1 vin sw gate 0 SWMOD", cir_text)
 
+    def test_create_from_args_uses_requested_schematic_title(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = buck.create_buck_from_args(
+                {
+                    "output_dir": tmp,
+                    "filename": "titled",
+                    "title": "Lab Buck Sweep",
+                    "simulate": False,
+                }
+            )
+            asc_text = Path(result["path"]).read_text(encoding="utf-8")
+
+        self.assertIn(";Lab Buck Sweep", asc_text)
+
     def test_existing_inputs_are_not_overwritten_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, "buck.asc").write_text("existing\n", encoding="utf-8")

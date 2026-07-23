@@ -20,10 +20,14 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Python compilation
         run: python3 -m py_compile mcp/*.py scripts/*.py tests/*.py
+      - name: Plugin and skill package validation
+        run: python3 scripts/validate_package.py
       - name: Real ngspice smoke tests
         run: python3 scripts/ngspice_smoke_test.py
       - name: Whitespace check
-        run: git diff --check
+        run: |
+          empty_tree=$(git hash-object -t tree /dev/null)
+          git diff --check "$empty_tree" HEAD
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
