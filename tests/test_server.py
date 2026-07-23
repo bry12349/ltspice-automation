@@ -192,5 +192,98 @@ class OpenSchematicTests(unittest.TestCase):
         self.assertIn("macOS", result["stderr"])
 
 
+class V060ToolTests(unittest.TestCase):
+    def test_v060_tools_are_registered_without_removing_old_tools(self):
+        expected_old = {
+            "detect_ltspice",
+            "create_netlist",
+            "run_simulation",
+            "create_rc_schematic",
+            "create_rl_schematic",
+            "create_rlc_schematic",
+            "create_schematic_from_description",
+            "open_schematic",
+            "parse_log",
+        }
+        expected_new = {
+            "detect_simulators",
+            "create_buck_schematic",
+            "export_waveform",
+            "run_parameter_sweep",
+        }
+
+        self.assertTrue(expected_old | expected_new <= set(server.TOOLS))
+
+    def test_initialize_reports_v060(self):
+        response = server.handle_request(
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+        )
+
+        self.assertEqual(response["result"]["serverInfo"]["version"], "0.6.0")
+
+    def test_detect_simulators_handler_forwards_paths(self):
+        with mock.patch.object(
+            server.backends,
+            "detect_simulators",
+            return_value={"ltspice": {"found": True}, "ngspice": {"found": False}},
+        ) as detect:
+            result = server.tool_detect_simulators(
+                {"ltspice_path": "/lt", "ngspice_path": "/ng"}
+            )
+
+        detect.assert_called_once_with("/lt", "/ng")
+        self.assertTrue(result["ltspice"]["found"])
+
+    def test_new_tool_call_serializes_results(self):
+        with mock.patch.object(
+            server.sweeps,
+            "run_sweep",
+            return_value={"status": "PASS", "points": []},
+        ):
+            response = server.handle_request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "run_parameter_sweep",
+                        "arguments": {
+                            "circuit_type": "rc_lowpass",
+                            "parameter": "resistance",
+                            "values": ["1k", "2k"],
+                        },
+                    },
+                }
+            )
+
+        text = response["result"]["content"][0]["text"]
+        self.assertIn('"status": "PASS"', text)
+
+    def test_new_tool_validation_error_is_actionable_jsonrpc_error(self):
+        with mock.patch.object(
+            server.sweeps,
+            "run_sweep",
+            side_effect=RuntimeError("sweep values must contain 2 through 20 explicit values"),
+        ):
+            response = server.handle_request(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "run_parameter_sweep",
+                        "arguments": {
+                            "circuit_type": "rc_lowpass",
+                            "parameter": "resistance",
+                            "values": ["1k"],
+                        },
+                    },
+                }
+            )
+
+        self.assertEqual(response["error"]["code"], -32000)
+        self.assertIn("2 through 20", response["error"]["message"])
+
+
 if __name__ == "__main__":
     unittest.main()

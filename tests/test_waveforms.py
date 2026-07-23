@@ -103,6 +103,28 @@ class WaveformArtifactTests(unittest.TestCase):
         self.assertIn([50.0, 100.0], reduced["rows"])
         self.assertLessEqual(len(reduced["rows"]), 12)
 
+    def test_export_from_args_writes_csv_plot_and_rc_metrics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = waveforms.export_from_args(
+                {
+                    "input_path": str(FIXTURES / "ltspice_rc_ascii.txt"),
+                    "backend": "ltspice",
+                    "output_path": str(Path(tmp) / "export.csv"),
+                    "plot_path": str(Path(tmp) / "export.svg"),
+                    "signal": "V(out)",
+                    "circuit_type": "rc_lowpass",
+                    "parameters": {
+                        "vin": "1",
+                        "resistance": "1k",
+                        "capacitance": "1u",
+                    },
+                }
+            )
+            artifacts_exist = Path(result["csv"]["path"]).exists() and Path(result["plot"]["path"]).exists()
+
+        self.assertTrue(artifacts_exist)
+        self.assertLess(result["metrics"]["tau_error_percent"], 1.0)
+
 
 class MetricTests(unittest.TestCase):
     def test_rc_metrics_find_tau_and_rise_time(self):

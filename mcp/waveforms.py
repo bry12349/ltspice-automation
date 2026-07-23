@@ -347,3 +347,52 @@ def buck_metrics(
         "ideal_vout_v": ideal,
         "conversion_error_percent": abs(voltage_average - ideal) / abs(ideal) * 100.0,
     }
+
+
+def export_from_args(args: Dict[str, Any]) -> Dict[str, Any]:
+    input_path = Path(args.get("input_path") or "").expanduser().resolve()
+    backend = str(args.get("backend") or "").lower()
+    if backend not in {"ltspice", "ngspice"}:
+        raise RuntimeError("backend must be ltspice or ngspice")
+    table = read_waveform(input_path, backend)
+    output_path = Path(args.get("output_path") or input_path.with_suffix(".csv")).expanduser().resolve()
+    plot_path = Path(args.get("plot_path") or input_path.with_suffix(".svg")).expanduser().resolve()
+    signal = str(args.get("signal") or table["columns"][1])
+    csv_result = write_csv(table, output_path)
+    plot_result = write_svg(
+        [{"label": str(args.get("label") or signal), "table": table, "signal": signal}],
+        plot_path,
+        str(args.get("title") or "Waveform"),
+        "Time (s)",
+        str(args.get("y_label") or signal),
+    )
+    result: Dict[str, Any] = {
+        "input_path": str(input_path),
+        "backend": backend,
+        "csv": csv_result,
+        "plot": plot_result,
+    }
+    circuit_type = args.get("circuit_type")
+    parameters = dict(args.get("parameters") or {})
+    if circuit_type:
+        try:
+            from mcp import portable
+        except ImportError:
+            import portable
+        if circuit_type == "rc_lowpass":
+            result["metrics"] = rc_metrics(
+                table,
+                portable.spice_number(parameters.get("vin", "1")),
+                portable.spice_number(parameters.get("resistance", "1k")),
+                portable.spice_number(parameters.get("capacitance", "1u")),
+            )
+        elif circuit_type == "buck_converter":
+            result["metrics"] = buck_metrics(
+                table,
+                portable.spice_number(parameters.get("vin", "12")),
+                portable.spice_number(parameters.get("duty_cycle", 5.0 / 12.0)),
+                portable.spice_number(parameters.get("steady_from")),
+            )
+        else:
+            raise RuntimeError("circuit_type must be rc_lowpass or buck_converter")
+    return result

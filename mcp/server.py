@@ -10,11 +10,19 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
+    from mcp import backends
+    from mcp import buck
     from mcp import reporting
+    from mcp import sweeps
     from mcp import validation
+    from mcp import waveforms
 except ImportError:
+    import backends
+    import buck
     import reporting
+    import sweeps
     import validation
+    import waveforms
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
@@ -101,6 +109,25 @@ def tool_detect_ltspice(args: Dict[str, Any]) -> Dict[str, Any]:
         "version": _ltspice_version(app or exe),
         "notes": "Batch mode normally uses the LTspice executable with -b against a .cir/.net/.asc input.",
     }
+
+
+def tool_detect_simulators(args: Dict[str, Any]) -> Dict[str, Any]:
+    return backends.detect_simulators(
+        args.get("ltspice_path"),
+        args.get("ngspice_path"),
+    )
+
+
+def tool_create_buck_schematic(args: Dict[str, Any]) -> Dict[str, Any]:
+    return buck.create_buck_from_args(args)
+
+
+def tool_export_waveform(args: Dict[str, Any]) -> Dict[str, Any]:
+    return waveforms.export_from_args(args)
+
+
+def tool_run_parameter_sweep(args: Dict[str, Any]) -> Dict[str, Any]:
+    return sweeps.run_sweep(args)
 
 
 def _sanitize_filename(name: str) -> str:
@@ -986,6 +1013,17 @@ TOOLS = {
         },
         "handler": tool_detect_ltspice,
     },
+    "detect_simulators": {
+        "description": "Detect the available LTspice and ngspice simulation backends.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ltspice_path": {"type": "string"},
+                "ngspice_path": {"type": "string"},
+            },
+        },
+        "handler": tool_detect_simulators,
+    },
     "create_netlist": {
         "description": "Create a SPICE netlist file. Supports explicit netlist lines or a built-in RC low-pass template.",
         "inputSchema": {
@@ -1070,6 +1108,79 @@ TOOLS = {
         },
         "handler": tool_create_rlc_schematic,
     },
+    "create_buck_schematic": {
+        "description": "Create a constrained asynchronous Buck schematic and portable netlist, optionally simulate it, export waveform data, plot it, and report key metrics.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "output_dir": {"type": "string"},
+                "filename": {"type": "string"},
+                "overwrite": {"type": "boolean"},
+                "simulate": {"type": "boolean"},
+                "backend": {"type": "string", "enum": ["auto", "ltspice", "ngspice"]},
+                "timeout_seconds": {"type": "integer"},
+                "ltspice_path": {"type": "string"},
+                "ngspice_path": {"type": "string"},
+                "vin": {"type": ["string", "number"]},
+                "duty_cycle": {"type": ["string", "number"]},
+                "switching_frequency": {"type": ["string", "number"]},
+                "inductance": {"type": ["string", "number"]},
+                "capacitance": {"type": ["string", "number"]},
+                "load_resistance": {"type": ["string", "number"]},
+                "switch_ron": {"type": ["string", "number"]},
+                "switch_roff": {"type": ["string", "number"]},
+                "stop_time": {"type": ["string", "number"]},
+                "max_step": {"type": ["string", "number"]},
+            },
+        },
+        "handler": tool_create_buck_schematic,
+    },
+    "export_waveform": {
+        "description": "Export a supported LTspice or ngspice ASCII waveform to CSV, create an SVG curve, and optionally compute RC or Buck metrics.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["input_path", "backend"],
+            "properties": {
+                "input_path": {"type": "string"},
+                "backend": {"type": "string", "enum": ["ltspice", "ngspice"]},
+                "output_path": {"type": "string"},
+                "plot_path": {"type": "string"},
+                "signal": {"type": "string"},
+                "label": {"type": "string"},
+                "title": {"type": "string"},
+                "y_label": {"type": "string"},
+                "circuit_type": {"type": "string", "enum": ["rc_lowpass", "buck_converter"]},
+                "parameters": {"type": "object"},
+            },
+        },
+        "handler": tool_export_waveform,
+    },
+    "run_parameter_sweep": {
+        "description": "Run a bounded point-by-point RC resistance/capacitance or Buck duty-cycle sweep with CSV, SVG, metrics, and a Markdown report.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["circuit_type", "parameter", "values"],
+            "properties": {
+                "circuit_type": {"type": "string", "enum": ["rc_lowpass", "buck_converter"]},
+                "parameter": {"type": "string", "enum": ["resistance", "capacitance", "duty_cycle"]},
+                "values": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 20,
+                    "items": {"type": ["string", "number"]},
+                },
+                "parameters": {"type": "object"},
+                "output_dir": {"type": "string"},
+                "backend": {"type": "string", "enum": ["auto", "ltspice", "ngspice"]},
+                "overwrite": {"type": "boolean"},
+                "timeout_seconds": {"type": "integer"},
+                "ltspice_path": {"type": "string"},
+                "ngspice_path": {"type": "string"},
+            },
+        },
+        "handler": tool_run_parameter_sweep,
+    },
     "create_schematic_from_description": {
         "description": "Convert a natural-language circuit request into a visible LTspice .asc schematic, optionally simulate it, and open it in LTspice.",
         "inputSchema": {
@@ -1132,7 +1243,7 @@ def handle_request(request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return _jsonrpc_result(message_id, {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "ltspice-automation", "version": "0.5.1"},
+                "serverInfo": {"name": "ltspice-automation", "version": "0.6.0"},
             })
         if method == "notifications/initialized":
             return None
