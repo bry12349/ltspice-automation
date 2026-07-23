@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ngspice
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ngspice
+      - name: Unit tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Python compilation
+        run: python3 -m py_compile mcp/*.py scripts/*.py tests/*.py
+      - name: Real ngspice smoke tests
+        run: python3 scripts/ngspice_smoke_test.py
+      - name: Whitespace check
+        run: git diff --check
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ngspice-failure-artifacts
+          path: work/ngspice-smoke
+          if-no-files-found: ignore
