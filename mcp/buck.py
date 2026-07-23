@@ -114,63 +114,62 @@ def render_schematic(parameters: Dict[str, float], title: str) -> List[str]:
     return [
         "Version 4",
         "SHEET 1 1000 720",
-        "WIRE 128 112 80 112",
-        "WIRE 256 112 208 112",
-        "WIRE 336 112 256 112",
-        "WIRE 400 112 336 112",
-        "WIRE 496 112 400 112",
-        "WIRE 80 272 80 112",
-        "WIRE 256 240 256 112",
-        "WIRE 400 240 400 112",
-        "WIRE 496 240 496 112",
-        "WIRE 80 320 80 304",
-        "WIRE 256 320 80 320",
-        "WIRE 400 320 256 320",
-        "WIRE 496 320 400 320",
-        "WIRE 176 240 176 208",
-        "WIRE 176 320 176 304",
-        "FLAG 80 320 0",
-        "FLAG 80 112 vin",
-        "FLAG 256 112 sw",
-        "FLAG 400 112 out",
-        "FLAG 176 208 gate",
-        "SYMBOL voltage 80 208 R0",
+        "WIRE 256 144 96 144",
+        "WIRE 256 224 320 224",
+        "WIRE 384 224 496 224",
+        "WIRE 96 304 96 224",
+        "WIRE 160 304 96 304",
+        "WIRE 256 304 160 304",
+        "WIRE 432 304 256 304",
+        "WIRE 496 304 432 304",
+        "WIRE 256 304 256 288",
+        "WIRE 432 304 432 288",
+        "WIRE 160 336 160 304",
+        "WIRE 160 256 208 256",
+        "WIRE 208 256 208 208",
+        "FLAG 96 304 0",
+        "FLAG 96 144 vin",
+        "FLAG 256 224 sw",
+        "FLAG 384 224 out",
+        "FLAG 208 208 gate",
+        "FLAG 208 160 0",
+        "SYMBOL voltage 96 128 R0",
         "SYMATTR InstName V1",
         f"SYMATTR Value {portable.format_spice(p['vin_v'])}",
-        "SYMBOL voltage 176 272 R0",
+        "SYMBOL voltage 160 240 R0",
         "SYMATTR InstName VPWM",
         (
             "SYMATTR Value PULSE(0 5 0 10n 10n "
             f"{portable.format_spice(p['on_time_s'])} "
             f"{portable.format_spice(p['switching_period_s'])})"
         ),
-        "SYMBOL sw 224 112 R0",
+        "SYMBOL sw 256 128 R0",
         "SYMATTR InstName S1",
         "SYMATTR Value SWMOD",
-        "SYMBOL diode 272 240 R180",
+        "SYMBOL diode 272 288 R180",
         "SYMATTR InstName D1",
         "SYMATTR Value DMOD",
-        "SYMBOL ind 320 128 R270",
+        "SYMBOL ind 304 240 R270",
         "SYMATTR InstName L1",
         f"SYMATTR Value {portable.format_spice(p['inductance_h'])}",
-        "SYMBOL cap 384 240 R0",
+        "SYMBOL cap 416 224 R0",
         "SYMATTR InstName C1",
         f"SYMATTR Value {portable.format_spice(p['capacitance_f'])}",
-        "SYMBOL res 480 240 R0",
+        "SYMBOL res 480 208 R0",
         "SYMATTR InstName RLOAD",
         f"SYMATTR Value {portable.format_spice(p['load_resistance_ohm'])}",
         (
-            "TEXT 80 368 Left 2 !.model SWMOD SW("
+            "TEXT 80 376 Left 2 !.model SWMOD SW("
             f"Ron={portable.format_spice(p['switch_ron_ohm'])} "
             f"Roff={portable.format_spice(p['switch_roff_ohm'])} Vt=2.5 Vh=.1)"
         ),
-        "TEXT 80 400 Left 2 !.model DMOD D(Is=1n Rs=.01 N=1)",
+        "TEXT 80 408 Left 2 !.model DMOD D(Is=1n Rs=.01 N=1)",
         (
-            f"TEXT 80 432 Left 2 !.tran 0 {portable.format_spice(p['stop_time_s'])} 0 "
+            f"TEXT 80 440 Left 2 !.tran 0 {portable.format_spice(p['stop_time_s'])} 0 "
             f"{portable.format_spice(p['max_step_s'])} startup"
         ),
         f"TEXT 80 72 Left 2 ;{title}",
-        "TEXT 80 480 Left 2 ;Simplified asynchronous Buck: idealized switch and diode",
+        "TEXT 80 488 Left 2 ;Simplified asynchronous Buck: idealized switch and diode",
     ]
 
 

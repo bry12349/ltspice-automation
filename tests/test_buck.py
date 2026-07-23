@@ -44,7 +44,10 @@ class BuckGenerationTests(unittest.TestCase):
         self.assertIn(".save V(out) V(gate) I(L1)", netlist)
         self.assertIn("SYMBOL sw", schematic)
         self.assertIn("SYMATTR InstName L1", schematic)
-        self.assertIn("FLAG 400 112 out", schematic)
+        self.assertIn("WIRE 256 224 320 224", schematic)
+        self.assertIn("WIRE 384 224 496 224", schematic)
+        self.assertIn("FLAG 384 224 out", schematic)
+        self.assertIn("FLAG 208 160 0", schematic)
 
     def test_create_without_simulation_writes_both_inputs(self):
         with tempfile.TemporaryDirectory() as tmp:
