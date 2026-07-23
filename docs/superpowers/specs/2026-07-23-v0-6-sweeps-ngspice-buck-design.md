@@ -39,7 +39,7 @@ will keep simulator and analysis concerns separate:
   - simulator discovery;
   - explicit `ltspice`, `ngspice`, and `auto` backend selection;
   - process execution and normalized status results;
-  - LTspice ASCII RAW and ngspice tabular export handling.
+  - LTspice binary/ASCII RAW and ngspice ASCII RAW handling.
 - `mcp/waveforms.py`
   - normalized waveform table representation;
   - CSV reading and writing;
@@ -105,8 +105,10 @@ object to prevent value drift.
 
 ### Waveform Acquisition
 
-- ngspice writes selected vectors through a deterministic batch control block.
-- LTspice is invoked with ASCII output for new portable workflows.
+- ngspice is invoked with `SPICE_ASCIIRAWFILE=1`.
+- LTspice uses its reliable binary batch output; the parser handles the tested
+  transient RAW layout directly because LTspice 26 on macOS hangs with
+  `-ascii`.
 - both outputs are normalized to:
   - one strictly increasing `time_s` column;
   - finite numeric signal columns;

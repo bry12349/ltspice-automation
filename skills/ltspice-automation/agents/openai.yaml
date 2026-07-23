@@ -1,14 +1,14 @@
 interface:
   display_name: "LTspice Automation"
-  short_description: "Generate and verify RC/RL/RLC LTspice circuits."
+  short_description: "Verify LTspice/ngspice circuits, Buck converters, and sweeps."
   brand_color: "#2563EB"
-  default_prompt: "Use $ltspice-automation to create and simulate an RC, RL, or underdamped RLC LTspice circuit."
+  default_prompt: "Use $ltspice-automation to simulate a bounded circuit, export its waveform, or run a supported parameter sweep."
 
 dependencies:
   tools:
     - type: "mcp"
       value: "ltspice-automation"
-      description: "Local MCP server for LTspice schematic generation, simulation, log parsing, and reports."
+      description: "Local MCP server for LTspice/ngspice simulation, waveform export, parameter sweeps, and engineering reports."
 
 policy:
   allow_implicit_invocation: true

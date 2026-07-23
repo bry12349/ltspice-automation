@@ -30,7 +30,7 @@
 - Modify `mcp/server.py`: MCP handlers and schemas for the four new public tools.
 - Modify `mcp/reporting.py`: shared artifact/reproduction formatting where needed.
 - Create `tests/fixtures/ngspice_rc_wrdata.txt`: stable ngspice table parser fixture.
-- Create `tests/fixtures/ltspice_rc_ascii.raw`: minimal LTspice ASCII RAW parser fixture.
+- Create `tests/fixtures/ltspice_rc_ascii.txt`: minimal LTspice ASCII RAW parser fixture.
 - Create `tests/test_backends.py`: backend unit tests.
 - Create `tests/test_waveforms.py`: waveform, metric, CSV, and SVG unit tests.
 - Create `tests/test_buck.py`: Buck generation, validation, and report unit tests.
@@ -127,7 +127,7 @@ Use commands:
 
 ```python
 if chosen == "ltspice":
-    command = [executable, "-b", "-ascii", str(input_path)]
+    command = [executable, "-b", str(input_path)]
 else:
     command = [executable, "-b", "-o", str(log_path), "-r", str(raw_path), str(input_path)]
 ```
@@ -162,7 +162,7 @@ git commit -m "feat: add portable simulator backends"
 - Create: `mcp/waveforms.py`
 - Create: `tests/test_waveforms.py`
 - Create: `tests/fixtures/ngspice_rc_wrdata.txt`
-- Create: `tests/fixtures/ltspice_rc_ascii.raw`
+- Create: `tests/fixtures/ltspice_rc_ascii.txt`
 
 **Interfaces:**
 - Produces: `read_waveform(path, backend) -> {"columns": list[str], "rows": list[list[float]]}`
@@ -182,7 +182,7 @@ time v(out) i(v1)
 5.000000e-03 9.932621e-01 -6.737947e-06
 ```
 
-`tests/fixtures/ltspice_rc_ascii.raw`:
+`tests/fixtures/ltspice_rc_ascii.txt`:
 
 ```text
 Title: rc
@@ -208,7 +208,7 @@ Values:
 ```python
 def test_parsers_normalize_time_and_signal_names(self):
     ng = waveforms.read_waveform(FIXTURES / "ngspice_rc_wrdata.txt", "ngspice")
-    lt = waveforms.read_waveform(FIXTURES / "ltspice_rc_ascii.raw", "ltspice")
+    lt = waveforms.read_waveform(FIXTURES / "ltspice_rc_ascii.txt", "ltspice")
     self.assertEqual(ng["columns"][:2], ["time_s", "V(out)"])
     self.assertEqual(lt["columns"], ["time_s", "V(out)"])
     self.assertAlmostEqual(lt["rows"][1][1], 0.6321206)

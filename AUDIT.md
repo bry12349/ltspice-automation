@@ -1,5 +1,28 @@
 # LTspice Automation Audit
 
+## v0.6.0 Status Update
+
+Date: 2026-07-23
+
+The current verified boundary now includes:
+
+- prior RC, RL, and underdamped series RLC LTspice workflows;
+- one constrained asynchronous Buck `.asc`/`.cir` workflow;
+- LTspice and ngspice portable transient backends;
+- LTspice binary/ASCII and ngspice ASCII RAW normalization;
+- waveform CSV/SVG export and RC/Buck metrics;
+- RC resistance/capacitance and Buck duty-cycle sweeps;
+- Linux CI with real ngspice RC and Buck smoke tests.
+
+Still unsupported: arbitrary circuit synthesis, arbitrary/multi-parameter
+sweeps, AC natural-language generation, critical/overdamped RLC, synchronous
+Buck, boost/flyback, closed-loop control, firmware, op-amp templates, and
+PCB/KiCad.
+
+The v0.5.1 section and the original v0.2 audit below are historical records.
+
+---
+
 ## v0.5.1 Status Update
 
 Date: 2026-07-16
@@ -16,7 +39,9 @@ Current verified boundary:
 - parseable R/L/C values must be positive, while natural-language DC/default sources are normalized to step pulses;
 - default generated reports are sibling files of their schematics, leaving committed example reports unchanged.
 
-Outstanding scope remains intentionally constrained: arbitrary circuit synthesis, AC workflow generation, critical/overdamped RLC, Buck converters, parameter sweeps, and PCB/KiCad are not supported.
+At v0.5.1, outstanding scope included arbitrary circuit synthesis, AC workflow
+generation, critical/overdamped RLC, Buck converters, parameter sweeps, and
+PCB/KiCad. Buck and bounded sweeps were added later in v0.6.0.
 
 The remainder is retained as the 2026-07-01 historical audit record.
 

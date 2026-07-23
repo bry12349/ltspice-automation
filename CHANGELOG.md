@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.6.0 - Portable Waveforms, Sweeps, ngspice, and Buck
+
+Date: 2026-07-23
+
+### Added
+
+- Added LTspice and ngspice backend discovery and normalized portable
+  simulation results.
+- Added LTspice binary RAW plus LTspice/ngspice ASCII RAW parsing.
+- Added dependency-free waveform CSV export and SVG plotting.
+- Added RC final voltage, rise time, measured tau, theory tau, and tau-error
+  metrics.
+- Added a constrained asynchronous Buck `.asc`/`.cir` workflow with output
+  voltage, ripple, inductor current, ideal `D * Vin`, validation, and reports.
+- Added bounded point-by-point sweeps for RC resistance/capacitance and Buck
+  duty cycle.
+- Added Linux GitHub Actions with real ngspice RC and Buck smoke tests.
+- Added `detect_simulators`, `create_buck_schematic`, `export_waveform`, and
+  `run_parameter_sweep` MCP tools.
+
+### Compatibility
+
+- Preserved all v0.5.1 MCP tools and successful RC/RL/RLC behavior.
+- Portable `.cir` files use cross-compatible transient syntax; visible
+  LTspice `.asc` files may retain LTspice-specific options.
+- Buck remains an explicit bounded tool and is not added to arbitrary
+  natural-language topology inference.
+
+### Boundaries
+
+- Sweeps accept one parameter and 2–20 values.
+- Supported sweep matrix is RC R/C and Buck duty cycle only.
+- No arbitrary circuits, synchronous Buck, boost/flyback, closed-loop control,
+  STM32 firmware, or op-amp templates.
+
 ## v0.5.1 - Simulation and Parser Reliability
 
 Date: 2026-07-16

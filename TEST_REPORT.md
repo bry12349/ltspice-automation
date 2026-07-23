@@ -1,5 +1,76 @@
 # LTspice Automation Test Report
 
+## v0.6.0 Verification Update
+
+Date: 2026-07-23
+
+Scope: portable LTspice/ngspice backends, binary/ASCII waveform parsing,
+CSV/SVG export, RC/Buck metrics, constrained Buck converter, bounded parameter
+sweeps, and Linux CI.
+
+### Local Environment
+
+- macOS arm64.
+- Python 3.9.6.
+- LTspice 26.0.2.1.
+- ngspice 46.
+
+### Results Before Release Push
+
+- Unit tests: 81 passed.
+- Python compilation: passed.
+- Existing LTspice RC, RL, and RLC smoke tests: passed.
+- LTspice Buck smoke: PASS.
+- ngspice RC and Buck smoke: PASS.
+- LTspice RC resistance sweep: PASS.
+- ngspice Buck duty-cycle sweep: PASS.
+- Whitespace check: passed.
+
+### Representative Metrics
+
+```text
+LTspice Buck:
+  average Vout = 4.690156 V
+  ripple       = 0.371361 %
+  ideal error  = 6.196886 %
+
+ngspice Buck:
+  average Vout = 4.694168 V
+  ripple       = 0.364933 %
+  ideal error  = 6.116640 %
+
+ngspice RC:
+  measured tau = 1.000003 ms
+  tau error    = 0.000316 %
+```
+
+### Commands
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m py_compile mcp/*.py scripts/*.py tests/*.py
+python3 scripts/smoke_test.py
+python3 scripts/rl_smoke_test.py
+python3 scripts/rlc_smoke_test.py
+python3 scripts/buck_smoke_test.py
+python3 scripts/ngspice_smoke_test.py
+python3 scripts/sweep_smoke_test.py
+python3 /Users/a0000/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py .
+python3 /Users/a0000/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/ltspice-automation
+git diff --check
+```
+
+Linux GitHub Actions status is recorded after the release candidate is pushed.
+Publication is blocked until that exact commit passes CI.
+
+### Remaining Limits
+
+- Buck uses idealized switch/diode models and no closed-loop control.
+- Sweeps are one parameter at a time and intentionally limited to RC R/C and
+  Buck duty cycle.
+- LTspice GUI opening remains macOS-only.
+- Arbitrary circuit generation remains out of scope.
+
 ## v0.5.1 Verification Update
 
 Date: 2026-07-16

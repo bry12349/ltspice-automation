@@ -237,6 +237,8 @@ Status: completed in v0.5.1.
 
 ## Phase 5: Add Buck Converter
 
+Status: completed in v0.6.0 with one constrained asynchronous topology.
+
 ### Goal
 
 Add a constrained switching power converter example after simpler passive circuits are stable.
@@ -273,31 +275,41 @@ Add a constrained switching power converter example after simpler passive circui
 
 Shows power electronics exposure, switching simulation awareness, and the ability to handle more complex LTspice workflows.
 
+### v0.6.0 Delivered
+
+- Visible `.asc` plus portable `.cir` generated from one parameter object.
+- LTspice and ngspice simulation.
+- CSV/SVG waveform artifacts.
+- Average/min/max output, ripple, inductor current, and `D * Vin` metrics.
+- Explicit simplified-model limits and PASS/FAIL report.
+
 ## Phase 6: Parameter Sweeps
+
+Status: completed in v0.6.0 as backend-neutral point-by-point orchestration.
 
 ### Goal
 
-Add controlled `.step` support for exploring how component values affect response.
+Add controlled parameter exploration without depending on simulator-specific
+multi-step RAW formats.
 
 ### Tasks
 
-- Start with RC parameter sweeps.
-- Support one swept parameter at a time.
-- Generate `.step param` directives.
-- Parse sweep results from logs or exported data.
-- Produce a table in the Markdown report.
-- Add examples for changing `R`, `C`, or `Vin`.
+- Support RC resistance/capacitance and Buck duty-cycle sweeps.
+- Support one swept parameter and 2–20 values.
+- Run each point independently for LTspice/ngspice portability.
+- Produce per-point CSV/metrics plus aggregate CSV/SVG/Markdown.
+- Continue remaining points after one failure and report aggregate FAIL.
 
 ### Acceptance Criteria
 
-- One RC sweep runs and produces a report table.
-- The report shows how tau and measured output change across parameter values.
-- Sweep behavior is tested with small fixture data or a smoke run.
+- RC R/C and Buck duty-cycle matrices are enforced.
+- Real RC and Buck sweeps produce summary CSV, overlay SVG, and reports.
+- Unit tests cover limits, duplicates, point isolation, and partial failure.
 
 ### Risks
 
-- LTspice sweep output parsing can be more complex than single-run `.meas`.
-- Reports can become cluttered if sweep size is not constrained.
+- Point-by-point sweeps are slower than native `.step`.
+- Reports are bounded by the 20-point limit.
 
 ### Resume Value
 

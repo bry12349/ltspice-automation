@@ -1,7 +1,7 @@
 {
   "name": "ltspice-automation",
-  "version": "0.5.1+codex.20260716061300",
-  "description": "Create, simulate, validate, parse, and report LTspice RC, RL, and RLC step-response workflows.",
+  "version": "0.6.0",
+  "description": "Create and verify constrained LTspice/ngspice transient circuits, Buck converters, waveform exports, and parameter sweeps.",
   "author": {
     "name": "bry12349",
     "url": "https://github.com/bry12349"
@@ -11,6 +11,9 @@
   "keywords": [
     "ltspice",
     "circuit-simulation",
+    "ngspice",
+    "buck-converter",
+    "parameter-sweep",
     "electrical-engineering",
     "mcp",
     "codex"
@@ -18,8 +21,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Ltspice Automation",
-    "shortDescription": "Generate and verify LTspice RC/RL/RLC step-response circuits.",
-    "longDescription": "Local Codex tools that generate visible LTspice .asc schematics for RC low-pass, RL step-response, and underdamped series RLC step-response circuits, run batch simulations, parse .log measurements, validate results against circuit theory, and write Markdown simulation reports with PASS/FAIL summaries.",
+    "shortDescription": "Automate verified LTspice/ngspice circuits and sweeps.",
+    "longDescription": "Local Codex tools for visible RC, RL, RLC, and constrained Buck schematics; LTspice and ngspice batch simulation; waveform CSV/SVG export; bounded RC and Buck parameter sweeps; engineering metrics; and PASS/FAIL reports.",
     "developerName": "bry12349",
     "category": "Developer Tools",
     "capabilities": [
@@ -27,10 +30,9 @@
       "Local"
     ],
     "defaultPrompt": [
-      "Create and simulate a visible RC low-pass circuit.",
-      "Create and simulate a visible RL step-response circuit.",
-      "Create and simulate an underdamped RLC step-response circuit.",
-      "Parse this LTspice log and summarize measurements."
+      "Create and simulate a constrained Buck converter.",
+      "Sweep RC resistance and plot the responses.",
+      "Export this waveform to CSV with metrics."
     ]
   },
   "mcpServers": "./.mcp.json"

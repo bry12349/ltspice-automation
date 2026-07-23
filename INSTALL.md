@@ -1,97 +1,77 @@
 # Install LTspice Automation
 
-This repository is a local Codex plugin with MCP tools and a bundled skill.
-
 ## Requirements
 
-- macOS for GUI opening through `open_schematic`.
 - Python 3.9 or newer.
-- LTspice installed at `/Applications/LTspice.app`, or an explicit LTspice executable path.
 - Codex with local plugin support.
+- LTspice for macOS GUI/LTspice simulations.
+- ngspice for portable macOS/Linux simulations and CI.
 
-Batch simulation can work without the shell command `LTspice` in `PATH` because the plugin checks `/Applications/LTspice.app`.
+Install ngspice:
+
+```bash
+# macOS
+brew install ngspice
+
+# Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install -y ngspice
+```
+
+LTspice is detected from an explicit path, `PATH`,
+`/Applications/LTspice.app`, or `~/Applications/LTspice.app`.
 
 ## Install From GitHub
-
-Clone the repository into your local plugins folder:
 
 ```bash
 mkdir -p ~/plugins
 git clone https://github.com/bry12349/ltspice-automation.git ~/plugins/ltspice-automation
 cd ~/plugins/ltspice-automation
-```
-
-Install the plugin in Codex:
-
-```bash
 codex plugin add ltspice-automation@personal
 ```
 
-Start a new Codex thread after installing so the MCP tools and skill are loaded.
+Open a new Codex task after installation so the MCP tools and skill reload.
 
-## Verify The Install
-
-From the plugin root:
+## Verify
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m py_compile mcp/*.py scripts/*.py tests/*.py
 python3 scripts/smoke_test.py
 python3 scripts/rl_smoke_test.py
 python3 scripts/rlc_smoke_test.py
+python3 scripts/buck_smoke_test.py
+python3 scripts/ngspice_smoke_test.py
+python3 scripts/sweep_smoke_test.py
 ```
 
-Expected smoke output:
+## Headless Linux
 
-```text
-Smoke test passed
-RL smoke test passed
-RLC smoke test passed
-```
+Linux supports portable `.cir` workflows through ngspice:
 
-Generated reports:
+- RC simulations and R/C sweeps;
+- constrained Buck simulations and duty-cycle sweeps;
+- CSV, SVG, metrics, validation, and Markdown reports.
 
-```text
-reports/rc_lowpass_report.md
-reports/rl_step_response_report.md
-reports/rlc_series_report.md
-```
-
-In v0.5.0, reports include validation PASS/FAIL status, max error, tolerance, and reproduction details. By default a report is written beside its generated schematic as `<schematic-stem>_report.md`; pass `report_path` to override it.
-
-## Available Workflows
-
-- RC low-pass step response.
-- RL series step response.
-- Underdamped series RLC step response.
-- Explicit SPICE netlist generation.
-- LTspice batch simulation.
-- `.log` and `.meas` parsing.
-- RC/RL/RLC theory validation.
-- Markdown report generation.
+Opening `.asc` in the LTspice GUI remains macOS-only.
 
 ## Troubleshooting
 
-### LTspice is not detected
-
-Check:
+Check simulator discovery:
 
 ```bash
-ls -ld /Applications/LTspice.app
 ls -l /Applications/LTspice.app/Contents/MacOS/LTspice
+ngspice --version
 ```
 
-If LTspice is elsewhere, pass `ltspice_path` to the MCP tool.
+Pass `ltspice_path` or `ngspice_path` when executables are in nonstandard
+locations. Use `backend=ngspice` on Linux and `backend=auto` when either
+installed backend is acceptable.
 
-### GUI open fails
-
-GUI opening is currently macOS-only. Use `open=false` for headless generation and batch simulation.
-
-### Plugin update is not visible in Codex
-
-Reinstall the plugin:
+If a plugin update is not visible:
 
 ```bash
 codex plugin add ltspice-automation@personal
 ```
 
-Then open a new Codex thread.
+Then open a new Codex task.
