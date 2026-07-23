@@ -14,7 +14,10 @@ except ImportError:
 
 def spice_number(value: Any) -> float:
     text = str(value).strip()
-    match = re.fullmatch(r"([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*([A-Za-z]*)", text)
+    match = re.fullmatch(
+        r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*([A-Za-z]*)",
+        text,
+    )
     if not match:
         raise RuntimeError(f"invalid SPICE number: {value}")
     multipliers = {

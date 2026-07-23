@@ -32,6 +32,10 @@ class PortableRcTests(unittest.TestCase):
         self.assertAlmostEqual(portable.spice_number("10u"), 10e-6)
         self.assertEqual(portable.spice_number("3Meg"), 3e6)
 
+    def test_spice_number_supports_scientific_notation(self):
+        self.assertEqual(portable.spice_number(1e-7), 1e-7)
+        self.assertEqual(portable.spice_number("2.2e3"), 2200.0)
+
     def test_run_rc_case_returns_csv_plot_and_metrics(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
             backends,
