@@ -1,6 +1,6 @@
 {
   "name": "ltspice-automation",
-  "version": "0.6.0",
+  "version": "0.6.0+codex.20260723044853",
   "description": "Create and verify constrained LTspice/ngspice transient circuits, Buck converters, waveform exports, and parameter sweeps.",
   "author": {
     "name": "bry12349",
